@@ -40,14 +40,14 @@ This roadmap is a living document and must be updated with every meaningful scop
 
 ## Phase 4: NVIDIA Runtime
 
-- `todo` Implement CUDA backend contract and device discovery.
+- `done` Implement CUDA backend contract and device discovery.
 - `todo` Implement first CUDA kernels for core workload path.
-- `todo` Add GPU memory and chunking strategy.
+- `done` Add GPU memory and chunking strategy.
 - `todo` Add planner heuristics for CUDA selection.
 
 ## Phase 5: Apple Runtime
 
-- `todo` Implement Apple Metal backend contract.
+- `done` Implement Apple Metal backend contract.
 - `todo` Implement first Metal compute kernels for core workload path.
 - `todo` Add planner heuristics for Apple backend selection.
 

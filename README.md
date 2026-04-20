@@ -49,7 +49,8 @@ User-experience research and UX implementation plan is in `docs/user-friendlines
 
 ## Next Steps
 
-- implement NVIDIA backend contract and device discovery
-- implement Apple Metal backend contract and device discovery
+- implement first NVIDIA CUDA kernels for core workload path
+- implement first Apple Metal kernels for core workload path
+- add planner heuristics for GPU backend selection
 - expand competitor matrix to JAX/CuPy/PyTorch where environment allows
 - add CI for lint, test, and benchmark gate checks

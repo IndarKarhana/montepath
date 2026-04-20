@@ -1,6 +1,6 @@
 # Competitiveness Plan
 
-Current Rust baseline (`mc_cpu_european_call_rust`): `0.594 ms`
+Current Rust baseline (`mc_cpu_european_call_rust`): `1.065 ms`
 
 Status: Rust currently leads available CPU baselines for this workload.
 
