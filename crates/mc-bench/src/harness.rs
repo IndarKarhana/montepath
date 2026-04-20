@@ -1,30 +1,123 @@
 use std::collections::BTreeMap;
+use std::process::Command;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use mc_core::{
-    plan_execution, BackendId, BackendPreference, BackendSupportReport, PlannerMode, RunConfig,
+    european_call_price_mc_cpu, plan_execution, BackendId, BackendPreference, BackendSupportReport,
+    EuropeanCallConfig, PlannerMode, RunConfig,
 };
 use mc_schema::{
     validate_simulation_spec, AxisKind, AxisSpec, Expr, ObservationSpec, ParameterSpec,
     RandomVarSpec, ReductionSpec, SimulationSpec, StateUpdate, StateVarSpec, StepSpec,
 };
+use serde::Deserialize;
 
 use crate::result::{BenchmarkReport, BenchmarkResult};
 
+const MC_PATHS: usize = 100_000;
+const MC_STEPS: usize = 64;
+const MC_REPEATS: usize = 3;
+
 pub fn run_default_benchmarks() -> BenchmarkReport {
     let spec = sample_spec(false);
+
+    let mut results = vec![
+        benchmark_schema_validation(&spec, 10_000),
+        benchmark_planner_overhead(&spec, 10_000),
+        benchmark_planner_choice_accuracy(),
+        benchmark_mc_rust_cpu(MC_REPEATS),
+    ];
+
+    results.extend(benchmark_python_competitors(
+        MC_PATHS, MC_STEPS, MC_REPEATS, 42,
+    ));
 
     BenchmarkReport {
         generated_at_unix_ms: SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("system clock should be after unix epoch")
             .as_millis(),
-        results: vec![
-            benchmark_schema_validation(&spec, 10_000),
-            benchmark_planner_overhead(&spec, 10_000),
-            benchmark_planner_choice_accuracy(),
-        ],
+        results,
     }
+}
+
+pub fn build_competitiveness_plan(report: &BenchmarkReport) -> String {
+    let rust = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "mc_cpu_european_call_rust")
+        .and_then(|r| r.runtime_ms())
+        .unwrap_or(f64::INFINITY);
+
+    let mut competitor_rows = report
+        .results
+        .iter()
+        .filter(|r| {
+            r.benchmark_name == "mc_cpu_european_call_numpy"
+                || r.benchmark_name == "mc_cpu_european_call_numba"
+        })
+        .filter_map(|r| {
+            r.runtime_ms().map(|runtime| {
+                (
+                    r.benchmark_name.clone(),
+                    runtime,
+                    if rust.is_finite() {
+                        rust / runtime
+                    } else {
+                        0.0
+                    },
+                )
+            })
+        })
+        .collect::<Vec<_>>();
+
+    competitor_rows.sort_by(|a, b| a.1.total_cmp(&b.1));
+
+    let mut out = String::new();
+    out.push_str("# Competitiveness Plan\n\n");
+
+    if !rust.is_finite() {
+        out.push_str("Rust Monte Carlo benchmark result missing. Run benchmark harness first.\n");
+        return out;
+    }
+
+    out.push_str(&format!(
+        "Current Rust baseline (`mc_cpu_european_call_rust`): `{:.3} ms`\n\n",
+        rust
+    ));
+
+    let slower_than = competitor_rows
+        .iter()
+        .filter(|(_, runtime, _)| rust > *runtime)
+        .collect::<Vec<_>>();
+
+    if slower_than.is_empty() {
+        out.push_str("Status: Rust currently leads available CPU baselines for this workload.\n\n");
+        out.push_str("Maintain lead plan:\n");
+        out.push_str("- Keep RNG and loop hot path allocation-free.\n");
+        out.push_str("- Add release-mode benchmark gates for MC runtime.\n");
+        out.push_str("- Expand competitor matrix to GPU baselines (JAX/CuPy/PyTorch) when hardware is available.\n");
+        return out;
+    }
+
+    out.push_str("Status: Rust is slower than at least one available baseline.\n\n");
+    out.push_str("Observed gaps:\n");
+    for (name, runtime, ratio) in &slower_than {
+        out.push_str(&format!(
+            "- `{name}` is faster: `{:.3} ms` vs Rust `{:.3} ms` (Rust is `{:.2}x` slower)\n",
+            runtime, rust, ratio
+        ));
+    }
+
+    out.push_str("\nAction plan to close the gap:\n");
+    out.push_str(
+        "- Introduce SIMD-friendly normal generation and batched exponentials in CPU runtime.\n",
+    );
+    out.push_str("- Add multithreaded path partitioning with deterministic stream splitting.\n");
+    out.push_str("- Benchmark release profile (`--release`) and optimize hottest functions with profiler evidence.\n");
+    out.push_str("- Add workload-specialized kernels for common cases (`n_steps` fixed, drift/vol precomputed).\n");
+
+    out
 }
 
 fn benchmark_schema_validation(spec: &SimulationSpec, iterations: usize) -> BenchmarkResult {
@@ -38,13 +131,6 @@ fn benchmark_schema_validation(spec: &SimulationSpec, iterations: usize) -> Benc
     }
 
     let elapsed = started.elapsed();
-    let total_runtime_ms = elapsed.as_secs_f64() * 1_000.0;
-    let per_iteration_us = elapsed.as_secs_f64() * 1_000_000.0 / iterations as f64;
-    let throughput_per_sec = if elapsed.as_secs_f64() == 0.0 {
-        iterations as f64
-    } else {
-        iterations as f64 / elapsed.as_secs_f64()
-    };
 
     BenchmarkResult {
         benchmark_name: "schema_validation".to_string(),
@@ -53,9 +139,9 @@ fn benchmark_schema_validation(spec: &SimulationSpec, iterations: usize) -> Benc
         backend: "cpu_native".to_string(),
         planner_mode: "n/a".to_string(),
         iterations,
-        total_runtime_ms,
-        per_iteration_us,
-        throughput_per_sec,
+        total_runtime_ms: elapsed.as_secs_f64() * 1_000.0,
+        per_iteration_us: elapsed.as_secs_f64() * 1_000_000.0 / iterations as f64,
+        throughput_per_sec: throughput(iterations, elapsed.as_secs_f64()),
         metric_name: None,
         metric_value: None,
     }
@@ -89,13 +175,6 @@ fn benchmark_planner_overhead(spec: &SimulationSpec, iterations: usize) -> Bench
     }
 
     let elapsed = started.elapsed();
-    let total_runtime_ms = elapsed.as_secs_f64() * 1_000.0;
-    let per_iteration_us = elapsed.as_secs_f64() * 1_000_000.0 / iterations as f64;
-    let throughput_per_sec = if elapsed.as_secs_f64() == 0.0 {
-        iterations as f64
-    } else {
-        iterations as f64 / elapsed.as_secs_f64()
-    };
 
     BenchmarkResult {
         benchmark_name: "planner_overhead_auto".to_string(),
@@ -104,9 +183,9 @@ fn benchmark_planner_overhead(spec: &SimulationSpec, iterations: usize) -> Bench
         backend: "planner".to_string(),
         planner_mode: "balanced".to_string(),
         iterations,
-        total_runtime_ms,
-        per_iteration_us,
-        throughput_per_sec,
+        total_runtime_ms: elapsed.as_secs_f64() * 1_000.0,
+        per_iteration_us: elapsed.as_secs_f64() * 1_000_000.0 / iterations as f64,
+        throughput_per_sec: throughput(iterations, elapsed.as_secs_f64()),
         metric_name: None,
         metric_value: None,
     }
@@ -201,15 +280,6 @@ fn benchmark_planner_choice_accuracy() -> BenchmarkResult {
     }
 
     let elapsed = started.elapsed();
-    let total_runtime_ms = elapsed.as_secs_f64() * 1_000.0;
-    let per_iteration_us = elapsed.as_secs_f64() * 1_000_000.0 / iterations as f64;
-    let throughput_per_sec = if elapsed.as_secs_f64() == 0.0 {
-        iterations as f64
-    } else {
-        iterations as f64 / elapsed.as_secs_f64()
-    };
-
-    let accuracy_pct = (correct as f64 / iterations as f64) * 100.0;
 
     BenchmarkResult {
         benchmark_name: "planner_choice_accuracy".to_string(),
@@ -218,12 +288,195 @@ fn benchmark_planner_choice_accuracy() -> BenchmarkResult {
         backend: "planner".to_string(),
         planner_mode: "balanced".to_string(),
         iterations,
-        total_runtime_ms,
-        per_iteration_us,
-        throughput_per_sec,
+        total_runtime_ms: elapsed.as_secs_f64() * 1_000.0,
+        per_iteration_us: elapsed.as_secs_f64() * 1_000_000.0 / iterations as f64,
+        throughput_per_sec: throughput(iterations, elapsed.as_secs_f64()),
         metric_name: Some("accuracy_pct".to_string()),
-        metric_value: Some(accuracy_pct),
+        metric_value: Some((correct as f64 / iterations as f64) * 100.0),
     }
+}
+
+fn benchmark_mc_rust_cpu(repeats: usize) -> BenchmarkResult {
+    let cfg = EuropeanCallConfig {
+        n_paths: MC_PATHS,
+        n_steps: MC_STEPS,
+        ..EuropeanCallConfig::default()
+    };
+
+    let mut runtimes = Vec::with_capacity(repeats);
+    let mut prices = Vec::with_capacity(repeats);
+    let mut stderrs = Vec::with_capacity(repeats);
+
+    for i in 0..repeats {
+        let mut cfg_i = cfg;
+        cfg_i.seed = cfg.seed + i as u64;
+
+        let started = Instant::now();
+        let result = european_call_price_mc_cpu(&cfg_i);
+        let elapsed = started.elapsed();
+
+        runtimes.push(elapsed.as_secs_f64() * 1_000.0);
+        prices.push(result.price);
+        stderrs.push(result.stderr);
+    }
+
+    let avg_runtime_ms = runtimes.iter().sum::<f64>() / runtimes.len() as f64;
+    let avg_price = prices.iter().sum::<f64>() / prices.len() as f64;
+    let _avg_stderr = stderrs.iter().sum::<f64>() / stderrs.len() as f64;
+
+    BenchmarkResult {
+        benchmark_name: "mc_cpu_european_call_rust".to_string(),
+        benchmark_version: "0.1".to_string(),
+        implementation: "mc-core::runtime::cpu::european_call_price_mc_cpu".to_string(),
+        backend: "cpu_native".to_string(),
+        planner_mode: "n/a".to_string(),
+        iterations: repeats,
+        total_runtime_ms: avg_runtime_ms * repeats as f64,
+        per_iteration_us: avg_runtime_ms * 1_000.0,
+        throughput_per_sec: if avg_runtime_ms == 0.0 {
+            cfg.n_paths as f64
+        } else {
+            (cfg.n_paths as f64) / (avg_runtime_ms / 1_000.0)
+        },
+        metric_name: Some("price_estimate".to_string()),
+        metric_value: Some(avg_price),
+    }
+}
+
+fn benchmark_python_competitors(
+    n_paths: usize,
+    n_steps: usize,
+    repeats: usize,
+    seed: u64,
+) -> Vec<BenchmarkResult> {
+    let output = Command::new("python3")
+        .arg("benchmarks/competitors/python_cpu_baselines.py")
+        .arg("--paths")
+        .arg(n_paths.to_string())
+        .arg("--steps")
+        .arg(n_steps.to_string())
+        .arg("--repeats")
+        .arg(repeats.to_string())
+        .arg("--seed")
+        .arg(seed.to_string())
+        .output();
+
+    let Ok(output) = output else {
+        return vec![BenchmarkResult {
+            benchmark_name: "mc_cpu_european_call_competitors".to_string(),
+            benchmark_version: "0.1".to_string(),
+            implementation: "python_cpu_baselines.py".to_string(),
+            backend: "external".to_string(),
+            planner_mode: "n/a".to_string(),
+            iterations: 1,
+            total_runtime_ms: 0.0,
+            per_iteration_us: 0.0,
+            throughput_per_sec: 0.0,
+            metric_name: Some("error".to_string()),
+            metric_value: None,
+        }];
+    };
+
+    if !output.status.success() {
+        return vec![BenchmarkResult {
+            benchmark_name: "mc_cpu_european_call_competitors".to_string(),
+            benchmark_version: "0.1".to_string(),
+            implementation: "python_cpu_baselines.py".to_string(),
+            backend: "external".to_string(),
+            planner_mode: "n/a".to_string(),
+            iterations: 1,
+            total_runtime_ms: 0.0,
+            per_iteration_us: 0.0,
+            throughput_per_sec: 0.0,
+            metric_name: Some("script_failed".to_string()),
+            metric_value: None,
+        }];
+    }
+
+    let parsed = serde_json::from_slice::<PythonBenchmarkPayload>(&output.stdout);
+    let Ok(parsed) = parsed else {
+        return vec![BenchmarkResult {
+            benchmark_name: "mc_cpu_european_call_competitors".to_string(),
+            benchmark_version: "0.1".to_string(),
+            implementation: "python_cpu_baselines.py".to_string(),
+            backend: "external".to_string(),
+            planner_mode: "n/a".to_string(),
+            iterations: 1,
+            total_runtime_ms: 0.0,
+            per_iteration_us: 0.0,
+            throughput_per_sec: 0.0,
+            metric_name: Some("parse_failed".to_string()),
+            metric_value: None,
+        }];
+    };
+
+    parsed
+        .results
+        .into_iter()
+        .map(|entry| {
+            if entry.available {
+                let runtime_ms = entry.runtime_ms.unwrap_or(0.0);
+                BenchmarkResult {
+                    benchmark_name: format!("mc_cpu_european_call_{}", entry.library),
+                    benchmark_version: "0.1".to_string(),
+                    implementation: format!("python::{0}", entry.library),
+                    backend: "cpu_external".to_string(),
+                    planner_mode: "n/a".to_string(),
+                    iterations: repeats,
+                    total_runtime_ms: runtime_ms * repeats as f64,
+                    per_iteration_us: runtime_ms * 1_000.0,
+                    throughput_per_sec: if runtime_ms == 0.0 {
+                        n_paths as f64
+                    } else {
+                        n_paths as f64 / (runtime_ms / 1_000.0)
+                    },
+                    metric_name: Some("price_estimate".to_string()),
+                    metric_value: entry.price,
+                }
+            } else {
+                BenchmarkResult {
+                    benchmark_name: format!("mc_cpu_european_call_{}_unavailable", entry.library),
+                    benchmark_version: "0.1".to_string(),
+                    implementation: format!("python::{}", entry.library),
+                    backend: "cpu_external".to_string(),
+                    planner_mode: "n/a".to_string(),
+                    iterations: 1,
+                    total_runtime_ms: 0.0,
+                    per_iteration_us: 0.0,
+                    throughput_per_sec: 0.0,
+                    metric_name: Some("unavailable".to_string()),
+                    metric_value: None,
+                }
+            }
+        })
+        .collect()
+}
+
+fn throughput(iterations: usize, elapsed_seconds: f64) -> f64 {
+    if elapsed_seconds == 0.0 {
+        iterations as f64
+    } else {
+        iterations as f64 / elapsed_seconds
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PythonBenchmarkPayload {
+    #[allow(dead_code)]
+    environment: BTreeMap<String, serde_json::Value>,
+    results: Vec<PythonLibraryResult>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PythonLibraryResult {
+    library: String,
+    available: bool,
+    runtime_ms: Option<f64>,
+    price: Option<f64>,
+    #[allow(dead_code)]
+    stderr: Option<f64>,
+    #[allow(dead_code)]
+    note: Option<String>,
 }
 
 fn sample_spec(with_conditional: bool) -> SimulationSpec {
@@ -305,5 +558,19 @@ fn sample_spec(with_conditional: bool) -> SimulationSpec {
             source: "payoff".to_string(),
             axes: vec!["path".to_string()],
         }],
+    }
+}
+
+trait ResultExt {
+    fn runtime_ms(&self) -> Option<f64>;
+}
+
+impl ResultExt for BenchmarkResult {
+    fn runtime_ms(&self) -> Option<f64> {
+        if self.iterations == 0 {
+            None
+        } else {
+            Some(self.total_runtime_ms / self.iterations as f64)
+        }
     }
 }

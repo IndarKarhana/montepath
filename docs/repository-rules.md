@@ -78,3 +78,13 @@ A task is done when:
 - docs are updated
 - roadmap status is updated
 - known risks are documented
+
+## 9. Competitive Benchmarking and UX Mandate
+
+- Benchmark against best available ecosystem baselines for relevant workloads.
+- If runtime is slower than available baselines, generate and track a concrete improvement plan.
+- Treat user experience as a first-class quality target:
+  - actionable errors
+  - consistent API conventions
+  - simple and ergonomic builders/defaults
+  - reproducibility and explainability in outputs

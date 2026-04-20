@@ -38,4 +38,10 @@ fn benchmark_gates_hold_for_current_internal_suite() {
         "planner_choice_accuracy gate failed: accuracy_pct={} expected>=75",
         accuracy
     );
+
+    let rust_mc = find_metric("mc_cpu_european_call_rust", &report);
+    assert!(
+        rust_mc.total_runtime_ms > 0.0,
+        "mc_cpu_european_call_rust gate failed: expected benchmark presence and positive runtime"
+    );
 }

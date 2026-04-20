@@ -6,6 +6,8 @@
 - Follow architecture and design docs in `docs/`.
 - Keep `roadmap.md` current.
 - Use TDD as default workflow.
+- Follow `docs/competitive-benchmark-policy.md`.
+- Treat user-friendliness as a core quality requirement (not optional polish).
 
 ## Development Workflow
 

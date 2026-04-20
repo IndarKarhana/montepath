@@ -30,4 +30,9 @@ impl Diagnostic {
             suggestion: None,
         }
     }
+
+    pub fn with_suggestion(mut self, suggestion: impl Into<String>) -> Self {
+        self.suggestion = Some(suggestion.into());
+        self
+    }
 }

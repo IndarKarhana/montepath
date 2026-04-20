@@ -40,6 +40,8 @@ cargo run -p mc-bench -- --output benchmarks/latest-results.json
 ## Benchmark Gates
 
 Benchmark thresholds are documented in `docs/benchmark-gates.md`.
+Competitive benchmark policy is documented in `docs/competitive-benchmark-policy.md`.
+User-experience research and UX implementation plan is in `docs/user-friendliness-research.md`.
 
 ## Next Steps
 

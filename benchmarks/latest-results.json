@@ -1,5 +1,5 @@
 {
-  "generated_at_unix_ms": 1776672624699,
+  "generated_at_unix_ms": 1776674933188,
   "results": [
     {
       "benchmark_name": "schema_validation",
@@ -8,9 +8,9 @@
       "backend": "cpu_native",
       "planner_mode": "n/a",
       "iterations": 10000,
-      "total_runtime_ms": 76.551625,
-      "per_iteration_us": 7.6551625,
-      "throughput_per_sec": 130630.79980340065,
+      "total_runtime_ms": 83.642291,
+      "per_iteration_us": 8.3642291,
+      "throughput_per_sec": 119556.74432686213,
       "metric_name": null,
       "metric_value": null
     },
@@ -21,9 +21,9 @@
       "backend": "planner",
       "planner_mode": "balanced",
       "iterations": 10000,
-      "total_runtime_ms": 3.821958,
-      "per_iteration_us": 0.38219580000000003,
-      "throughput_per_sec": 2616459.940166794,
+      "total_runtime_ms": 4.103,
+      "per_iteration_us": 0.4103,
+      "throughput_per_sec": 2437241.0431391667,
       "metric_name": null,
       "metric_value": null
     },
@@ -34,11 +34,89 @@
       "backend": "planner",
       "planner_mode": "balanced",
       "iterations": 4,
-      "total_runtime_ms": 0.002875,
-      "per_iteration_us": 0.71875,
-      "throughput_per_sec": 1391304.347826087,
+      "total_runtime_ms": 0.003292,
+      "per_iteration_us": 0.823,
+      "throughput_per_sec": 1215066.8286755772,
       "metric_name": "accuracy_pct",
       "metric_value": 100.0
+    },
+    {
+      "benchmark_name": "mc_cpu_european_call_rust",
+      "benchmark_version": "0.1",
+      "implementation": "mc-core::runtime::cpu::european_call_price_mc_cpu",
+      "backend": "cpu_native",
+      "planner_mode": "n/a",
+      "iterations": 3,
+      "total_runtime_ms": 900.328125,
+      "per_iteration_us": 300109.375,
+      "throughput_per_sec": 333211.84984641016,
+      "metric_name": "price_estimate",
+      "metric_value": 9.376290586536577
+    },
+    {
+      "benchmark_name": "mc_cpu_european_call_numpy",
+      "benchmark_version": "0.1",
+      "implementation": "python::numpy",
+      "backend": "cpu_external",
+      "planner_mode": "n/a",
+      "iterations": 3,
+      "total_runtime_ms": 211.57191702513956,
+      "per_iteration_us": 70523.97234171319,
+      "throughput_per_sec": 1417957.563641838,
+      "metric_name": "price_estimate",
+      "metric_value": 9.486908967640362
+    },
+    {
+      "benchmark_name": "mc_cpu_european_call_numba",
+      "benchmark_version": "0.1",
+      "implementation": "python::numba",
+      "backend": "cpu_external",
+      "planner_mode": "n/a",
+      "iterations": 3,
+      "total_runtime_ms": 763.0445009854157,
+      "per_iteration_us": 254348.16699513857,
+      "throughput_per_sec": 393161.86619859276,
+      "metric_name": "price_estimate",
+      "metric_value": 9.374553860753096
+    },
+    {
+      "benchmark_name": "mc_cpu_european_call_jax_unavailable",
+      "benchmark_version": "0.1",
+      "implementation": "python::jax",
+      "backend": "cpu_external",
+      "planner_mode": "n/a",
+      "iterations": 1,
+      "total_runtime_ms": 0.0,
+      "per_iteration_us": 0.0,
+      "throughput_per_sec": 0.0,
+      "metric_name": "unavailable",
+      "metric_value": null
+    },
+    {
+      "benchmark_name": "mc_cpu_european_call_cupy_unavailable",
+      "benchmark_version": "0.1",
+      "implementation": "python::cupy",
+      "backend": "cpu_external",
+      "planner_mode": "n/a",
+      "iterations": 1,
+      "total_runtime_ms": 0.0,
+      "per_iteration_us": 0.0,
+      "throughput_per_sec": 0.0,
+      "metric_name": "unavailable",
+      "metric_value": null
+    },
+    {
+      "benchmark_name": "mc_cpu_european_call_torch_unavailable",
+      "benchmark_version": "0.1",
+      "implementation": "python::torch",
+      "backend": "cpu_external",
+      "planner_mode": "n/a",
+      "iterations": 1,
+      "total_runtime_ms": 0.0,
+      "per_iteration_us": 0.0,
+      "throughput_per_sec": 0.0,
+      "metric_name": "unavailable",
+      "metric_value": null
     }
   ]
 }

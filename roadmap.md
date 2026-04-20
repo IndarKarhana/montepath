@@ -33,10 +33,10 @@ This roadmap is a living document and must be updated with every meaningful scop
 ## Phase 3: CPU Runtime (Reference Backend)
 
 - `todo` Implement `cpu_native` backend contract.
-- `todo` Add deterministic RNG stream mapping.
-- `todo` Implement baseline execution loop for path/step simulation.
-- `todo` Implement baseline reductions.
-- `todo` Validate numeric correctness against benchmark fixtures.
+- `done` Add deterministic RNG stream mapping.
+- `done` Implement baseline execution loop for path/step simulation (European call workload).
+- `done` Implement baseline reductions (mean and standard error for payoff).
+- `in-progress` Validate numeric correctness against benchmark fixtures.
 
 ## Phase 4: NVIDIA Runtime
 
@@ -55,6 +55,9 @@ This roadmap is a living document and must be updated with every meaningful scop
 
 - `done` Implement benchmark harness and result schema.
 - `in-progress` Add baseline comparisons against NumPy / Numba / JAX / CuPy where relevant.
+- `done` Add automated CPU competitor baselines for NumPy and Numba.
+- `done` Add explicit availability reporting for JAX / CuPy / PyTorch in benchmark output.
+- `done` Auto-generate competitiveness improvement plan when running benchmarks.
 - `done` Track planner decision quality via planner-choice accuracy benchmark.
 - `done` Define performance gates and regression thresholds.
 
@@ -63,4 +66,5 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `in-progress` Test-driven development as default coding workflow.
 - `in-progress` Production-grade code quality and reliability standards.
 - `in-progress` Keep runtime lightweight, minimal overhead, and dependency-conscious.
+- `done` Research user-friendliness patterns from leading libraries and implement first UX improvements.
 - `todo` Add CI for lint, test, and formatting checks.

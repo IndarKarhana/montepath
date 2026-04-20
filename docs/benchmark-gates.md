@@ -11,6 +11,10 @@ The gates prevent obvious regressions while the codebase is still early.
 1. `schema_validation` per-iteration latency should stay below `50 us` in debug benchmark runs.
 2. `planner_overhead_auto` per-iteration latency should stay below `10 us` in debug benchmark runs.
 3. `planner_choice_accuracy` should remain at or above `75%` on the internal scenario set.
+4. `mc_cpu_european_call_rust` must be present in benchmark results.
+5. A competitiveness plan must always be generated (`benchmarks/improvement-plan.md`) and include either:
+- `Maintain lead plan` when we win
+- `Action plan to close the gap` when we lose
 
 These thresholds are intentionally conservative for early development and should be tightened as functionality grows.
 
