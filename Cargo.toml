@@ -1,0 +1,17 @@
+[workspace]
+members = [
+  "crates/mc-schema",
+  "crates/mc-core",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+version = "0.1.0"
+authors = ["mc-library contributors"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
