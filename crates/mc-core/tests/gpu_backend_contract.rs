@@ -1,8 +1,9 @@
 use mc_core::{
-    builtin_backends, estimate_gpu_bytes_per_path, plan_gpu_chunking, AppleMetalBackend,
-    BackendDecisionReport, BackendError, BackendExecutionInput, BackendId, DeviceInfo,
-    EuropeanCallConfig, ExecutionPlan, FeatureSummary, GpuChunkingConfig, NvidiaCudaBackend,
-    PlannerMode, RejectedBackend, RuntimeBackend, SupportLevel,
+    builtin_backends, estimate_gpu_bytes_per_path, european_call_price_mc_cpu_stepwise,
+    plan_gpu_chunking, AppleMetalBackend, BackendDecisionReport, BackendError,
+    BackendExecutionInput, BackendId, DeviceInfo, EuropeanCallConfig, ExecutionPlan,
+    FeatureSummary, GpuChunkingConfig, NvidiaCudaBackend, PlannerMode, RejectedBackend,
+    RuntimeBackend, SupportLevel,
 };
 
 fn test_plan() -> ExecutionPlan {
@@ -204,6 +205,66 @@ fn gpu_fallback_execute_rejects_mismatched_workload_shape() {
         .expect_err("mismatched workload should be rejected");
 
     assert!(matches!(err, BackendError::IncompatibleExecutionInput));
+}
+
+#[test]
+fn cuda_fallback_matches_cpu_stepwise_reference() {
+    let backend = NvidiaCudaBackend::new();
+    let artifact = backend
+        .compile(&test_plan(), &mock_cuda_device())
+        .expect("cuda fallback compile should succeed");
+    let cfg = EuropeanCallConfig {
+        n_paths: artifact.n_paths,
+        n_steps: artifact.n_steps,
+        seed: 5_001,
+        n_threads: 4,
+        ..EuropeanCallConfig::default()
+    };
+
+    let backend_run = backend
+        .execute(&artifact, &BackendExecutionInput::EuropeanCall(cfg))
+        .expect("cuda fallback execute should succeed");
+    let cpu_run = european_call_price_mc_cpu_stepwise(&cfg);
+
+    let error = (backend_run.price - cpu_run.price).abs();
+    let tolerance = 6.0 * backend_run.stderr.max(cpu_run.stderr);
+    assert!(
+        error <= tolerance + 1e-12,
+        "cuda fallback should remain statistically consistent with cpu reference: backend={} cpu={} tolerance={}",
+        backend_run.price,
+        cpu_run.price,
+        tolerance
+    );
+}
+
+#[test]
+fn metal_fallback_matches_cpu_stepwise_reference() {
+    let backend = AppleMetalBackend::new();
+    let artifact = backend
+        .compile(&test_plan(), &mock_metal_device())
+        .expect("metal fallback compile should succeed");
+    let cfg = EuropeanCallConfig {
+        n_paths: artifact.n_paths,
+        n_steps: artifact.n_steps,
+        seed: 5_002,
+        n_threads: 4,
+        ..EuropeanCallConfig::default()
+    };
+
+    let backend_run = backend
+        .execute(&artifact, &BackendExecutionInput::EuropeanCall(cfg))
+        .expect("metal fallback execute should succeed");
+    let cpu_run = european_call_price_mc_cpu_stepwise(&cfg);
+
+    let error = (backend_run.price - cpu_run.price).abs();
+    let tolerance = 6.0 * backend_run.stderr.max(cpu_run.stderr);
+    assert!(
+        error <= tolerance + 1e-12,
+        "metal fallback should remain statistically consistent with cpu reference: backend={} cpu={} tolerance={}",
+        backend_run.price,
+        cpu_run.price,
+        tolerance
+    );
 }
 
 #[test]

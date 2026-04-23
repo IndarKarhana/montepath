@@ -86,6 +86,12 @@ At minimum we should support benchmarking on:
 - NVIDIA CUDA machine
 - Apple Silicon machine
 
+Related operational guidance:
+
+- benchmark development may proceed on CPU-only machines
+- native GPU benchmark claims require dedicated hardware runs
+- see `docs/gpu-testing-strategy.md` for the validation split between CPU-only and hardware-backed testing
+
 Benchmark manifests should record:
 
 - OS

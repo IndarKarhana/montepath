@@ -1,0 +1,63 @@
+name: GPU Hardware Validation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  nvidia-cuda:
+    if: false
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - gpu
+      - cuda
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Environment probe
+        run: |
+          nvidia-smi
+          rustc --version
+          cargo --version
+
+      - name: Native CUDA test placeholder
+        run: |
+          echo "Enable this job when native CUDA kernels and runner infrastructure are ready."
+          exit 1
+
+  apple-metal:
+    if: false
+    runs-on:
+      - self-hosted
+      - macOS
+      - ARM64
+      - apple-silicon
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Environment probe
+        run: |
+          sw_vers
+          system_profiler SPHardwareDataType
+          rustc --version
+          cargo --version
+
+      - name: Native Metal test placeholder
+        run: |
+          echo "Enable this job when native Metal kernels and runner infrastructure are ready."
+          exit 1

@@ -77,6 +77,7 @@ User-experience research and UX implementation plan is in `docs/user-friendlines
 Agent integration guidance is in `docs/agent-integration-plan.md`.
 Public function inventory is in `docs/function-catalog.md`.
 Technique roadmap is in `docs/simulation-techniques.md`.
+GPU testing strategy is in `docs/gpu-testing-strategy.md`.
 
 ## Current CPU Results
 
@@ -102,4 +103,4 @@ From the latest release benchmark run:
 - calibrate planner recommendations from measured backend winners once native GPU paths exist
 - add Apple-specific planner heuristics for Metal-first environments
 - expand competitor matrix to JAX/CuPy/PyTorch where environment allows
-- add CI for lint, test, and benchmark gate checks
+- extend CI from CPU validation to native hardware validation once dedicated runners exist

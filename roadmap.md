@@ -96,4 +96,5 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `in-progress` Production-grade code quality and reliability standards.
 - `in-progress` Keep runtime lightweight, minimal overhead, and dependency-conscious.
 - `done` Research user-friendliness patterns from leading libraries and implement first UX improvements.
-- `todo` Add CI for lint, test, and formatting checks.
+- `done` Add baseline CPU CI for format, test, and benchmark smoke checks.
+- `todo` Add native CUDA and Metal hardware CI on dedicated runners.

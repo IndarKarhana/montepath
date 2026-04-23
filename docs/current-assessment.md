@@ -16,11 +16,13 @@ Today we have:
 - antithetic-variates and control-variates support for the current CPU European-call runtime
 - good benchmark automation and artifact discipline
 - backend contracts, discovery scaffolding, and explicit fallback execution paths for NVIDIA and Apple
+- a workable no-GPU testing strategy for backend conformance and CI
 
 Today we do not yet have:
 
 - native CUDA or Metal kernel execution
 - planner decisions calibrated from measured backend behavior
+- dedicated native GPU hardware CI
 
 ## What Is Working Well
 
