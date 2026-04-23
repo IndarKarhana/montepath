@@ -5,10 +5,11 @@ pub mod planner;
 pub mod runtime;
 
 pub use backend::{
-    builtin_backends, estimate_gpu_bytes_per_path, plan_gpu_chunking, AppleMetalBackend,
+    builtin_backends, cuda_native_feature_enabled, estimate_gpu_bytes_per_path,
+    metal_native_feature_enabled, plan_gpu_chunking, AppleMetalBackend, ArtifactExecutionMode,
     BackendError, BackendExecutionInput, BackendInfo, CompiledArtifact, CostEstimate,
-    CpuNativeBackend, DeviceInfo, GpuChunkingConfig, GpuChunkingPlan, NvidiaCudaBackend,
-    ReproSupport, RunOutput, RuntimeBackend, SupportReport,
+    CpuNativeBackend, DeviceInfo, GpuChunkingConfig, GpuChunkingPlan, NativeArtifactMetadata,
+    NvidiaCudaBackend, ReproSupport, RunOutput, RuntimeBackend, SupportReport,
 };
 pub use planner::{
     explain_execution_plan, extract_features, normalize_run_config, plan_execution,

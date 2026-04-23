@@ -26,5 +26,14 @@ jobs:
       - name: Test
         run: cargo test -q
 
+      - name: Test mc-core with cuda-native feature
+        run: cargo test -q -p mc-core --features cuda-native
+
+      - name: Test mc-core with metal-native feature
+        run: cargo test -q -p mc-core --features metal-native
+
+      - name: Test mc-core with combined native-gpu features
+        run: cargo test -q -p mc-core --features "cuda-native metal-native"
+
       - name: Benchmark harness smoke test
         run: cargo run -p mc-bench -- --output benchmarks/latest-results.json

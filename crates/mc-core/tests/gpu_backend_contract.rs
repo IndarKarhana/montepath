@@ -1,7 +1,17 @@
+#[cfg(any(
+    feature = "cuda-native",
+    not(any(feature = "cuda-native", feature = "metal-native"))
+))]
+use mc_core::cuda_native_feature_enabled;
+#[cfg(any(
+    feature = "metal-native",
+    not(any(feature = "cuda-native", feature = "metal-native"))
+))]
+use mc_core::metal_native_feature_enabled;
 use mc_core::{
     builtin_backends, estimate_gpu_bytes_per_path, european_call_price_mc_cpu_stepwise,
-    plan_gpu_chunking, AppleMetalBackend, BackendDecisionReport, BackendError,
-    BackendExecutionInput, BackendId, DeviceInfo, EuropeanCallConfig, ExecutionPlan,
+    plan_gpu_chunking, AppleMetalBackend, ArtifactExecutionMode, BackendDecisionReport,
+    BackendError, BackendExecutionInput, BackendId, DeviceInfo, EuropeanCallConfig, ExecutionPlan,
     FeatureSummary, GpuChunkingConfig, NvidiaCudaBackend, PlannerMode, RejectedBackend,
     RuntimeBackend, SupportLevel,
 };
@@ -123,6 +133,12 @@ fn cuda_compile_succeeds_with_fallback_artifact() {
 
     assert_eq!(artifact.backend_id, BackendId::NvidiaCuda);
     assert!(artifact.artifact_id.starts_with("cuda-fallback:"));
+    assert_eq!(artifact.execution_mode, ArtifactExecutionMode::GpuFallback);
+    let native = artifact
+        .native_artifact
+        .expect("cuda compile should produce native staging metadata");
+    assert_eq!(native.kernel_family, "european_call_stepwise_v1");
+    assert_eq!(native.feature_gate, "cuda-native");
 }
 
 #[test]
@@ -134,6 +150,12 @@ fn metal_compile_succeeds_with_fallback_artifact() {
 
     assert_eq!(artifact.backend_id, BackendId::AppleMetal);
     assert!(artifact.artifact_id.starts_with("metal-fallback:"));
+    assert_eq!(artifact.execution_mode, ArtifactExecutionMode::GpuFallback);
+    let native = artifact
+        .native_artifact
+        .expect("metal compile should produce native staging metadata");
+    assert_eq!(native.kernel_family, "european_call_stepwise_v1");
+    assert_eq!(native.feature_gate, "metal-native");
 }
 
 #[test]
@@ -297,4 +319,23 @@ fn estimate_gpu_bytes_per_path_scales_with_steps() {
 
     assert!(small_bytes > 0);
     assert!(large_bytes >= small_bytes);
+}
+
+#[cfg(not(any(feature = "cuda-native", feature = "metal-native")))]
+#[test]
+fn default_build_reports_native_feature_gates_disabled() {
+    assert!(!cuda_native_feature_enabled());
+    assert!(!metal_native_feature_enabled());
+}
+
+#[cfg(feature = "cuda-native")]
+#[test]
+fn cuda_native_feature_gate_reports_enabled_when_requested() {
+    assert!(cuda_native_feature_enabled());
+}
+
+#[cfg(feature = "metal-native")]
+#[test]
+fn metal_native_feature_gate_reports_enabled_when_requested() {
+    assert!(metal_native_feature_enabled());
 }

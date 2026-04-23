@@ -45,6 +45,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 
 - `done` Implement CUDA backend contract and device discovery.
 - `done` Add truthful delegated fallback execution path for CUDA backend while native kernels are in progress.
+- `done` Add host-side CUDA native staging boundary and feature gate.
 - `todo` Implement first CUDA kernels for core workload path.
 - `done` Add GPU memory and chunking strategy.
 - `done` Add planner heuristics for CUDA selection.
@@ -53,6 +54,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 
 - `done` Implement Apple Metal backend contract.
 - `done` Add truthful delegated fallback execution path for Apple Metal backend while native kernels are in progress.
+- `done` Add host-side Metal native staging boundary and feature gate.
 - `todo` Implement first Metal compute kernels for core workload path.
 - `todo` Add planner heuristics for Apple backend selection.
 
@@ -97,4 +99,5 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `in-progress` Keep runtime lightweight, minimal overhead, and dependency-conscious.
 - `done` Research user-friendliness patterns from leading libraries and implement first UX improvements.
 - `done` Add baseline CPU CI for format, test, and benchmark smoke checks.
+- `done` Validate feature-gated native backend staging in CPU-only CI.
 - `todo` Add native CUDA and Metal hardware CI on dedicated runners.

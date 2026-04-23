@@ -5,6 +5,12 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+default = []
+cuda-native = []
+metal-native = []
+native-gpu = ["cuda-native", "metal-native"]
+
 [dependencies]
 mc-schema = { path = "../mc-schema" }
 serde.workspace = true

@@ -22,6 +22,12 @@ If you do not have a CUDA device locally, we still test most of the GPU stack in
 
 That means local development can still validate planner behavior, backend shape, artifact compatibility, deterministic execution, and numerical equivalence to the CPU reference runtime.
 
+It now also validates feature-gated native backend staging through:
+
+- `cargo test -p mc-core --features cuda-native`
+- `cargo test -p mc-core --features metal-native`
+- `cargo test -p mc-core --features \"cuda-native metal-native\"`
+
 ## Layer 1: CPU Reference Truth
 
 The CPU runtime is the numerical source of truth for the current European-call workload family.
@@ -61,6 +67,7 @@ Standard CI should run on ordinary CPU-only GitHub runners and verify:
 - unit tests
 - integration tests
 - benchmark harness execution
+- feature-gated host-side native backend staging builds
 
 This catches most correctness regressions even before native GPU kernels exist.
 

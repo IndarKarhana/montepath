@@ -53,10 +53,25 @@ The current CPU runtime exposes both:
 
 The current GPU backends execute through explicit delegated CPU fallback semantics while native CUDA and Metal kernels are being built. That keeps the backend surface real and testable without overstating GPU acceleration.
 
+`mc-core` now also exposes host-side native staging gates:
+
+- `cuda-native`
+- `metal-native`
+
+These feature flags validate native backend boundaries, kernel metadata, and toolchain probing without requiring local GPU hardware.
+
 ## Running Tests
 
 ```bash
 cargo test
+```
+
+```bash
+cargo test -p mc-core --features cuda-native
+```
+
+```bash
+cargo test -p mc-core --features metal-native
 ```
 
 ## Running Benchmarks

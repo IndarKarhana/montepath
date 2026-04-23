@@ -1,13 +1,18 @@
 use std::time::Instant;
-use std::{process::Command, thread};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{
-    european_call_price_mc_cpu, european_call_price_mc_cpu_stepwise, BackendId, EuropeanCallConfig,
-    EuropeanCallResult, ExecutionPlan, PlannerMode, SupportLevel,
+    european_call_price_mc_cpu, european_call_price_mc_cpu_stepwise, BackendDecisionReport,
+    BackendId, EuropeanCallConfig, EuropeanCallResult, ExecutionPlan, PlannerMode, SupportLevel,
 };
+
+mod cuda;
+mod metal;
+
+pub use cuda::{cuda_native_feature_enabled, NvidiaCudaBackend};
+pub use metal::{metal_native_feature_enabled, AppleMetalBackend};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BackendInfo {
@@ -79,6 +84,24 @@ pub struct ReproSupport {
     pub supports_stable_chunking: bool,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactExecutionMode {
+    CpuNative,
+    GpuFallback,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NativeArtifactMetadata {
+    pub kernel_family: String,
+    pub entry_point: String,
+    pub source_module: String,
+    pub source_language: String,
+    pub feature_gate: String,
+    pub toolchain_available: bool,
+    pub notes: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct CompiledArtifact {
     pub artifact_id: String,
@@ -87,6 +110,8 @@ pub struct CompiledArtifact {
     pub n_paths: usize,
     pub n_steps: usize,
     pub planner_mode: PlannerMode,
+    pub execution_mode: ArtifactExecutionMode,
+    pub native_artifact: Option<NativeArtifactMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -239,6 +264,8 @@ impl RuntimeBackend for CpuNativeBackend {
             n_paths: plan.n_paths,
             n_steps: plan.n_steps,
             planner_mode: plan.planner_mode,
+            execution_mode: ArtifactExecutionMode::CpuNative,
+            native_artifact: None,
         })
     }
 
@@ -252,280 +279,20 @@ impl RuntimeBackend for CpuNativeBackend {
         }
 
         let started = Instant::now();
-
         let result = match input {
             BackendExecutionInput::EuropeanCall(cfg) => european_call_price_mc_cpu(cfg),
         };
 
-        let runtime_ms = started.elapsed().as_secs_f64() * 1_000.0;
         Ok(RunOutput {
             price: result.price,
             stderr: result.stderr,
-            runtime_ms,
+            runtime_ms: started.elapsed().as_secs_f64() * 1_000.0,
         })
     }
 
     fn reproducibility_capabilities(&self, _device: &DeviceInfo) -> ReproSupport {
         ReproSupport {
             supports_same_backend_exact: true,
-            supports_same_backend_deterministic: true,
-            supports_cross_backend_statistical: true,
-            supports_stable_chunking: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct NvidiaCudaBackend;
-
-impl NvidiaCudaBackend {
-    pub fn new() -> Self {
-        Self
-    }
-
-    fn validate_device(&self, device: &DeviceInfo) -> Result<(), BackendError> {
-        if device.backend_id != BackendId::NvidiaCuda || !device.device_id.starts_with("cuda:") {
-            return Err(BackendError::UnknownDevice(device.device_id.clone()));
-        }
-        Ok(())
-    }
-}
-
-impl RuntimeBackend for NvidiaCudaBackend {
-    fn backend_id(&self) -> BackendId {
-        BackendId::NvidiaCuda
-    }
-
-    fn describe_backend(&self) -> BackendInfo {
-        BackendInfo {
-            backend_id: BackendId::NvidiaCuda,
-            display_name: "NVIDIA CUDA".to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            platform: "cuda".to_string(),
-            supported_precisions: vec!["float32".to_string(), "float64".to_string()],
-            supported_rngs: vec!["philox".to_string(), "sobol".to_string()],
-            supported_sampling_modes: vec!["iid".to_string(), "qmc".to_string()],
-            supported_reduction_ops: vec![
-                "sum".to_string(),
-                "mean".to_string(),
-                "variance".to_string(),
-                "min".to_string(),
-                "max".to_string(),
-            ],
-        }
-    }
-
-    fn discover_devices(&self) -> Vec<DeviceInfo> {
-        discover_nvidia_devices()
-    }
-
-    fn supports(&self, _plan: &ExecutionPlan, device: &DeviceInfo) -> SupportReport {
-        if self.validate_device(device).is_err() {
-            return SupportReport {
-                backend_id: BackendId::NvidiaCuda,
-                device_id: device.device_id.clone(),
-                support_level: SupportLevel::Unsupported,
-                unsupported_features: vec!["unknown_device".to_string()],
-                warnings: vec![],
-            };
-        }
-
-        SupportReport {
-            backend_id: BackendId::NvidiaCuda,
-            device_id: device.device_id.clone(),
-            support_level: SupportLevel::SupportedWithFallbacks,
-            unsupported_features: vec!["native_cuda_execution_not_implemented".to_string()],
-            warnings: vec![
-                "CUDA backend currently executes through delegated CPU fallback while native kernels are in progress".to_string(),
-            ],
-        }
-    }
-
-    fn estimate_cost(&self, plan: &ExecutionPlan, device: &DeviceInfo) -> CostEstimate {
-        let op_scale = (plan.n_paths as f64) * (plan.n_steps as f64);
-        let estimated_runtime_ms = (op_scale / 50_000_000.0).max(0.01);
-        let estimated_compile_ms = 2.0;
-        let chunking = plan_gpu_chunking(
-            plan.n_paths,
-            device.memory_total_mb,
-            GpuChunkingConfig {
-                bytes_per_path: estimate_gpu_bytes_per_path(plan),
-                target_utilization: 0.75,
-                minimum_paths_per_chunk: 32_768,
-                fallback_budget_mb: 8_192,
-            },
-        );
-
-        CostEstimate {
-            backend_id: BackendId::NvidiaCuda,
-            device_id: device.device_id.clone(),
-            estimated_compile_ms,
-            estimated_runtime_ms,
-            estimated_total_ms: estimated_compile_ms + estimated_runtime_ms,
-            estimated_peak_memory_mb: chunking.estimated_peak_memory_mb as f64,
-            confidence: "low".to_string(),
-        }
-    }
-
-    fn compile(
-        &self,
-        plan: &ExecutionPlan,
-        device: &DeviceInfo,
-    ) -> Result<CompiledArtifact, BackendError> {
-        self.validate_device(device)?;
-        Ok(CompiledArtifact {
-            artifact_id: format!(
-                "cuda-fallback:{}:{}:{}",
-                plan.n_paths, plan.n_steps, plan.features.step_count
-            ),
-            backend_id: BackendId::NvidiaCuda,
-            device_id: device.device_id.clone(),
-            n_paths: plan.n_paths,
-            n_steps: plan.n_steps,
-            planner_mode: plan.planner_mode,
-        })
-    }
-
-    fn execute(
-        &self,
-        artifact: &CompiledArtifact,
-        input: &BackendExecutionInput,
-    ) -> Result<RunOutput, BackendError> {
-        execute_gpu_fallback(BackendId::NvidiaCuda, artifact, input)
-    }
-
-    fn reproducibility_capabilities(&self, _device: &DeviceInfo) -> ReproSupport {
-        ReproSupport {
-            supports_same_backend_exact: false,
-            supports_same_backend_deterministic: true,
-            supports_cross_backend_statistical: true,
-            supports_stable_chunking: true,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct AppleMetalBackend;
-
-impl AppleMetalBackend {
-    pub fn new() -> Self {
-        Self
-    }
-
-    fn validate_device(&self, device: &DeviceInfo) -> Result<(), BackendError> {
-        if device.backend_id != BackendId::AppleMetal || !device.device_id.starts_with("metal:") {
-            return Err(BackendError::UnknownDevice(device.device_id.clone()));
-        }
-        Ok(())
-    }
-}
-
-impl RuntimeBackend for AppleMetalBackend {
-    fn backend_id(&self) -> BackendId {
-        BackendId::AppleMetal
-    }
-
-    fn describe_backend(&self) -> BackendInfo {
-        BackendInfo {
-            backend_id: BackendId::AppleMetal,
-            display_name: "Apple Metal".to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            platform: "metal".to_string(),
-            supported_precisions: vec!["float32".to_string()],
-            supported_rngs: vec!["philox".to_string(), "sobol".to_string()],
-            supported_sampling_modes: vec!["iid".to_string(), "qmc".to_string()],
-            supported_reduction_ops: vec![
-                "sum".to_string(),
-                "mean".to_string(),
-                "variance".to_string(),
-                "min".to_string(),
-                "max".to_string(),
-            ],
-        }
-    }
-
-    fn discover_devices(&self) -> Vec<DeviceInfo> {
-        discover_apple_metal_devices()
-    }
-
-    fn supports(&self, _plan: &ExecutionPlan, device: &DeviceInfo) -> SupportReport {
-        if self.validate_device(device).is_err() {
-            return SupportReport {
-                backend_id: BackendId::AppleMetal,
-                device_id: device.device_id.clone(),
-                support_level: SupportLevel::Unsupported,
-                unsupported_features: vec!["unknown_device".to_string()],
-                warnings: vec![],
-            };
-        }
-
-        SupportReport {
-            backend_id: BackendId::AppleMetal,
-            device_id: device.device_id.clone(),
-            support_level: SupportLevel::SupportedWithFallbacks,
-            unsupported_features: vec!["native_metal_execution_not_implemented".to_string()],
-            warnings: vec![
-                "Apple Metal backend currently executes through delegated CPU fallback while native kernels are in progress".to_string(),
-            ],
-        }
-    }
-
-    fn estimate_cost(&self, plan: &ExecutionPlan, device: &DeviceInfo) -> CostEstimate {
-        let op_scale = (plan.n_paths as f64) * (plan.n_steps as f64);
-        let estimated_runtime_ms = (op_scale / 35_000_000.0).max(0.01);
-        let estimated_compile_ms = 1.5;
-        let chunking = plan_gpu_chunking(
-            plan.n_paths,
-            device.memory_total_mb,
-            GpuChunkingConfig {
-                bytes_per_path: estimate_gpu_bytes_per_path(plan),
-                target_utilization: 0.70,
-                minimum_paths_per_chunk: 32_768,
-                fallback_budget_mb: 6_144,
-            },
-        );
-
-        CostEstimate {
-            backend_id: BackendId::AppleMetal,
-            device_id: device.device_id.clone(),
-            estimated_compile_ms,
-            estimated_runtime_ms,
-            estimated_total_ms: estimated_compile_ms + estimated_runtime_ms,
-            estimated_peak_memory_mb: chunking.estimated_peak_memory_mb as f64,
-            confidence: "low".to_string(),
-        }
-    }
-
-    fn compile(
-        &self,
-        plan: &ExecutionPlan,
-        device: &DeviceInfo,
-    ) -> Result<CompiledArtifact, BackendError> {
-        self.validate_device(device)?;
-        Ok(CompiledArtifact {
-            artifact_id: format!(
-                "metal-fallback:{}:{}:{}",
-                plan.n_paths, plan.n_steps, plan.features.step_count
-            ),
-            backend_id: BackendId::AppleMetal,
-            device_id: device.device_id.clone(),
-            n_paths: plan.n_paths,
-            n_steps: plan.n_steps,
-            planner_mode: plan.planner_mode,
-        })
-    }
-
-    fn execute(
-        &self,
-        artifact: &CompiledArtifact,
-        input: &BackendExecutionInput,
-    ) -> Result<RunOutput, BackendError> {
-        execute_gpu_fallback(BackendId::AppleMetal, artifact, input)
-    }
-
-    fn reproducibility_capabilities(&self, _device: &DeviceInfo) -> ReproSupport {
-        ReproSupport {
-            supports_same_backend_exact: false,
             supports_same_backend_deterministic: true,
             supports_cross_backend_statistical: true,
             supports_stable_chunking: true,
@@ -569,10 +336,6 @@ pub fn plan_gpu_chunking(
 }
 
 pub fn estimate_gpu_bytes_per_path(plan: &ExecutionPlan) -> usize {
-    // Conservative per-path accounting for v1 kernels:
-    // - state and payoff buffers
-    // - RNG counter/key state
-    // - scratch for per-step intermediates (bounded for now)
     let state_bytes = 8usize;
     let payoff_bytes = 8usize;
     let rng_state_bytes = 16usize;
@@ -580,7 +343,49 @@ pub fn estimate_gpu_bytes_per_path(plan: &ExecutionPlan) -> usize {
     state_bytes + payoff_bytes + rng_state_bytes + step_scratch_bytes
 }
 
-fn execute_gpu_fallback(
+pub(crate) fn compile_gpu_fallback_artifact(
+    backend_id: BackendId,
+    artifact_prefix: &str,
+    plan: &ExecutionPlan,
+    device: &DeviceInfo,
+    native_artifact: Option<NativeArtifactMetadata>,
+) -> CompiledArtifact {
+    CompiledArtifact {
+        artifact_id: format!(
+            "{artifact_prefix}-fallback:{}:{}:{}",
+            plan.n_paths, plan.n_steps, plan.features.step_count
+        ),
+        backend_id,
+        device_id: device.device_id.clone(),
+        n_paths: plan.n_paths,
+        n_steps: plan.n_steps,
+        planner_mode: plan.planner_mode,
+        execution_mode: ArtifactExecutionMode::GpuFallback,
+        native_artifact,
+    }
+}
+
+pub(crate) fn make_native_artifact_metadata(
+    kernel_family: impl Into<String>,
+    entry_point: impl Into<String>,
+    source_module: impl Into<String>,
+    source_language: impl Into<String>,
+    feature_gate: impl Into<String>,
+    toolchain_available: bool,
+    notes: Vec<String>,
+) -> NativeArtifactMetadata {
+    NativeArtifactMetadata {
+        kernel_family: kernel_family.into(),
+        entry_point: entry_point.into(),
+        source_module: source_module.into(),
+        source_language: source_language.into(),
+        feature_gate: feature_gate.into(),
+        toolchain_available,
+        notes,
+    }
+}
+
+pub(crate) fn execute_gpu_fallback(
     backend_id: BackendId,
     artifact: &CompiledArtifact,
     input: &BackendExecutionInput,
@@ -662,7 +467,7 @@ fn estimate_gpu_bytes_for_artifact(artifact: &CompiledArtifact) -> usize {
         n_paths: artifact.n_paths,
         n_steps: artifact.n_steps,
         features: Default::default(),
-        decision_report: crate::BackendDecisionReport {
+        decision_report: BackendDecisionReport {
             selected_backend: artifact.backend_id,
             reasons: Vec::new(),
             rejected_backends: Vec::new(),
@@ -673,11 +478,11 @@ fn estimate_gpu_bytes_for_artifact(artifact: &CompiledArtifact) -> usize {
 
 fn lookup_device_memory_mb(backend_id: BackendId, device_id: &str) -> Option<usize> {
     match backend_id {
-        BackendId::NvidiaCuda => discover_nvidia_devices()
+        BackendId::NvidiaCuda => cuda::discover_nvidia_devices()
             .into_iter()
             .find(|device| device.device_id == device_id)
             .and_then(|device| device.memory_total_mb),
-        BackendId::AppleMetal => discover_apple_metal_devices()
+        BackendId::AppleMetal => metal::discover_apple_metal_devices()
             .into_iter()
             .find(|device| device.device_id == device_id)
             .and_then(|device| device.memory_total_mb),
@@ -710,7 +515,7 @@ fn summarize_result_from_sums(
     EuropeanCallResult { price, stderr }
 }
 
-fn stable_fallback_seed(base_seed: u64, chunk_index: u64) -> u64 {
+pub(crate) fn stable_fallback_seed(base_seed: u64, chunk_index: u64) -> u64 {
     splitmix64(base_seed.wrapping_add(chunk_index.wrapping_mul(0x9E37_79B9_7F4A_7C15)))
 }
 
@@ -720,62 +525,4 @@ fn splitmix64(mut x: u64) -> u64 {
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     z ^ (z >> 31)
-}
-
-fn discover_nvidia_devices() -> Vec<DeviceInfo> {
-    let output = Command::new("nvidia-smi")
-        .args([
-            "--query-gpu=name,memory.total",
-            "--format=csv,noheader,nounits",
-        ])
-        .output();
-
-    let Ok(output) = output else {
-        return Vec::new();
-    };
-    if !output.status.success() {
-        return Vec::new();
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    stdout
-        .lines()
-        .enumerate()
-        .filter_map(|(idx, line)| {
-            let mut parts = line.split(',');
-            let name = parts.next()?.trim().to_string();
-            let memory_mb = parts.next()?.trim().parse::<usize>().ok()?;
-            Some(DeviceInfo {
-                device_id: format!("cuda:{idx}"),
-                backend_id: BackendId::NvidiaCuda,
-                name,
-                vendor: "nvidia".to_string(),
-                memory_total_mb: Some(memory_mb),
-                memory_free_mb: None,
-                supports_float64: true,
-                supports_unified_memory: false,
-                max_threads_hint: 1024,
-            })
-        })
-        .collect()
-}
-
-fn discover_apple_metal_devices() -> Vec<DeviceInfo> {
-    if !cfg!(target_os = "macos") {
-        return Vec::new();
-    }
-
-    vec![DeviceInfo {
-        device_id: "metal:0".to_string(),
-        backend_id: BackendId::AppleMetal,
-        name: "Apple GPU".to_string(),
-        vendor: "apple".to_string(),
-        memory_total_mb: None,
-        memory_free_mb: None,
-        supports_float64: false,
-        supports_unified_memory: true,
-        max_threads_hint: thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(1),
-    }]
 }
