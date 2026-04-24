@@ -25,9 +25,8 @@ use super::{
 use crate::runtime::cpu::{
     summarize_block_estimates, summarize_control_variate, summarize_payoffs, ControlVariateMoments,
 };
-use crate::SupportLevel;
-#[cfg(all(feature = "metal-native", target_os = "macos"))]
 use crate::MonteCarloTechnique;
+use crate::{ArithmeticAsianCallConfig, SupportLevel};
 
 pub fn metal_native_feature_enabled() -> bool {
     cfg!(feature = "metal-native")
@@ -46,10 +45,62 @@ const METAL_TECHNIQUE_STANDARD: i32 = 0;
 const METAL_TECHNIQUE_ANTITHETIC: i32 = 1;
 #[cfg(all(feature = "metal-native", target_os = "macos"))]
 const METAL_TECHNIQUE_CONTROL_VARIATE: i32 = 2;
+const METAL_PAYOFF_EUROPEAN_CALL: i32 = 0;
+const METAL_PAYOFF_ARITHMETIC_ASIAN_CALL: i32 = 1;
 
 #[cfg(all(feature = "metal-native", target_os = "macos"))]
 thread_local! {
     static METAL_RUNTIME_CACHE: RefCell<Option<MetalRuntimeCache>> = const { RefCell::new(None) };
+}
+
+#[cfg_attr(
+    not(all(feature = "metal-native", target_os = "macos")),
+    allow(dead_code)
+)]
+#[derive(Debug, Clone, Copy)]
+struct StepwiseOptionJob {
+    n_paths: usize,
+    n_steps: usize,
+    s0: f64,
+    k: f64,
+    r: f64,
+    sigma: f64,
+    t: f64,
+    seed: u64,
+    technique: MonteCarloTechnique,
+    payoff_mode: i32,
+}
+
+impl StepwiseOptionJob {
+    fn from_european(cfg: &crate::EuropeanCallConfig) -> Self {
+        Self {
+            n_paths: cfg.n_paths,
+            n_steps: cfg.n_steps,
+            s0: cfg.s0,
+            k: cfg.k,
+            r: cfg.r,
+            sigma: cfg.sigma,
+            t: cfg.t,
+            seed: cfg.seed,
+            technique: cfg.technique,
+            payoff_mode: METAL_PAYOFF_EUROPEAN_CALL,
+        }
+    }
+
+    fn from_arithmetic_asian(cfg: &ArithmeticAsianCallConfig) -> Self {
+        Self {
+            n_paths: cfg.n_paths,
+            n_steps: cfg.n_steps,
+            s0: cfg.s0,
+            k: cfg.k,
+            r: cfg.r,
+            sigma: cfg.sigma,
+            t: cfg.t,
+            seed: cfg.seed,
+            technique: cfg.technique,
+            payoff_mode: METAL_PAYOFF_ARITHMETIC_ASIAN_CALL,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -108,7 +159,7 @@ impl RuntimeBackend for AppleMetalBackend {
         }
 
         let mut warnings = vec![
-            "Apple Metal backend now has a narrow native v1 path for standard, antithetic, and control-variate European-call stepwise execution"
+            "Apple Metal backend now has a narrow native v1 path for European-call and arithmetic-Asian-call stepwise execution"
                 .to_string(),
         ];
         let mut unsupported_features = Vec::new();
@@ -116,7 +167,7 @@ impl RuntimeBackend for AppleMetalBackend {
         if !supports_first_metal_kernel_shape(plan) {
             unsupported_features.push("first_metal_kernel_shape_not_supported".to_string());
             warnings.push(
-                "plans outside the staged European-call stepwise workload still fall back to CPU execution"
+                "plans outside the staged GBM stepwise workload family still fall back to CPU execution"
                     .to_string(),
             );
         }
@@ -362,6 +413,11 @@ fn first_metal_kernel_contract(plan: &ExecutionPlan) -> GpuKernelContract {
                 name: "technique_mode".to_string(),
                 value_type: GpuValueType::Int32,
             },
+            GpuScalarBinding {
+                binding_index: 14,
+                name: "payoff_mode".to_string(),
+                value_type: GpuValueType::Int32,
+            },
         ],
         launch: GpuLaunchDimensions {
             logical_threads: plan.n_paths,
@@ -385,11 +441,11 @@ fn metal_kernel_notes(
     compile_status: &MetalKernelStageStatus,
 ) -> Vec<String> {
     let mut notes = vec![
-        "native Metal v1 runtime is available for the staged European-call stepwise workload; other shapes still fall back"
+        "native Metal v1 runtime is available for the staged European-call and arithmetic-Asian-call GBM stepwise workloads; other shapes still fall back"
             .to_string(),
         "native execution caches the Metal device, command queue, and compute pipeline state inside the Rust process"
             .to_string(),
-        "main pricing kernel now performs RNG plus standard, antithetic, or control-variate moment accumulation on-device; follow-up reduction passes continue on-device until a single aggregate remains"
+        "main pricing kernel now performs RNG plus standard, antithetic, or control-variate moment accumulation on-device for the staged GBM option family; follow-up reduction passes continue on-device until a single aggregate remains"
             .to_string(),
         format!(
             "validated target shape: n_paths={} n_steps={} conditional_expressions={}",
@@ -492,20 +548,31 @@ fn execute_native_metal_if_possible(
         ));
     }
 
-    let cfg = match input {
-        BackendExecutionInput::EuropeanCall(cfg) => cfg,
-    };
-
-    if cfg.n_paths != artifact.n_paths || cfg.n_steps != artifact.n_steps {
-        return Err(BackendError::IncompatibleExecutionInput);
-    }
-
     let started = Instant::now();
     let compiled_module_path = artifact
         .native_artifact
         .as_ref()
         .and_then(|native| native.compiled_module_path.as_deref());
-    let result = execute_metal_stepwise_kernel(cfg, compiled_module_path)?;
+    let result = match input {
+        BackendExecutionInput::EuropeanCall(cfg) => {
+            if cfg.n_paths != artifact.n_paths || cfg.n_steps != artifact.n_steps {
+                return Err(BackendError::IncompatibleExecutionInput);
+            }
+            execute_metal_stepwise_kernel(
+                &StepwiseOptionJob::from_european(cfg),
+                compiled_module_path,
+            )?
+        }
+        BackendExecutionInput::ArithmeticAsianCall(cfg) => {
+            if cfg.n_paths != artifact.n_paths || cfg.n_steps != artifact.n_steps {
+                return Err(BackendError::IncompatibleExecutionInput);
+            }
+            execute_metal_stepwise_kernel(
+                &StepwiseOptionJob::from_arithmetic_asian(cfg),
+                compiled_module_path,
+            )?
+        }
+    };
 
     Ok(super::RunOutput {
         price: result.price,
@@ -515,12 +582,12 @@ fn execute_native_metal_if_possible(
 }
 
 fn execute_metal_stepwise_kernel(
-    cfg: &crate::EuropeanCallConfig,
+    job: &StepwiseOptionJob,
     compiled_module_path: Option<&str>,
 ) -> Result<crate::EuropeanCallResult, BackendError> {
     #[cfg(not(all(feature = "metal-native", target_os = "macos")))]
     {
-        let _ = (cfg, compiled_module_path);
+        let _ = (job, compiled_module_path);
         Err(BackendError::UnsupportedFeature(
             "native Metal execution is unavailable on this target".to_string(),
         ))
@@ -542,7 +609,7 @@ fn execute_metal_stepwise_kernel(
             cache
                 .as_ref()
                 .expect("metal runtime cache should be initialized")
-                .execute(cfg)
+                .execute(job)
         })
     }
 }
@@ -593,12 +660,9 @@ impl MetalRuntimeCache {
         })
     }
 
-    fn execute(
-        &self,
-        cfg: &crate::EuropeanCallConfig,
-    ) -> Result<crate::EuropeanCallResult, BackendError> {
+    fn execute(&self, job: &StepwiseOptionJob) -> Result<crate::EuropeanCallResult, BackendError> {
         autoreleasepool(|| {
-            let sample_count = effective_sample_count(cfg);
+            let sample_count = effective_sample_count(job.technique, job.n_paths);
             let main_group_count = reduction_group_count(sample_count);
             let partial_buffer_len = main_group_count.max(1);
             let partial_buffer_bytes = (partial_buffer_len * size_of::<f32>()) as u64;
@@ -643,7 +707,7 @@ impl MetalRuntimeCache {
                 &partial_control_sum_a,
                 &partial_control_sq_sum_a,
                 &partial_cross_sum_a,
-                cfg,
+                job,
             );
 
             let mut current_count = main_group_count;
@@ -767,25 +831,25 @@ impl MetalRuntimeCache {
             let payoff_sum = read_first_f32(final_sum_buffer) as f64;
             let payoff_sq_sum = read_first_f32(final_sq_sum_buffer) as f64;
 
-            let result = match cfg.technique {
+            let result = match job.technique {
                 MonteCarloTechnique::Standard => {
-                    summarize_payoffs(cfg.n_paths, payoff_sum, payoff_sq_sum)
+                    summarize_payoffs(job.n_paths, payoff_sum, payoff_sq_sum)
                 }
                 MonteCarloTechnique::Antithetic => summarize_block_estimates(
-                    effective_sample_count(cfg),
+                    effective_sample_count(job.technique, job.n_paths),
                     payoff_sum,
                     payoff_sq_sum,
                 ),
                 MonteCarloTechnique::ControlVariate => {
                     let moments = ControlVariateMoments {
-                        sample_count: cfg.n_paths,
+                        sample_count: job.n_paths,
                         payoff_sum,
                         payoff_sq_sum,
                         control_sum: read_first_f32(final_control_sum_buffer) as f64,
                         control_sq_sum: read_first_f32(final_control_sq_sum_buffer) as f64,
                         payoff_control_cross_sum: read_first_f32(final_cross_sum_buffer) as f64,
                     };
-                    summarize_control_variate(moments, cfg.s0)
+                    summarize_control_variate(moments, job.s0)
                 }
             };
 
@@ -861,7 +925,7 @@ fn encode_pricing_pass(
     partial_control_sum_buffer: &metal::Buffer,
     partial_control_sq_sum_buffer: &metal::Buffer,
     partial_cross_sum_buffer: &metal::Buffer,
-    cfg: &crate::EuropeanCallConfig,
+    job: &StepwiseOptionJob,
 ) {
     let encoder = command_buffer.new_compute_command_encoder();
     encoder.set_compute_pipeline_state(pipeline);
@@ -871,16 +935,17 @@ fn encode_pricing_pass(
     encoder.set_buffer(3, Some(partial_control_sq_sum_buffer), 0);
     encoder.set_buffer(4, Some(partial_cross_sum_buffer), 0);
 
-    let n_paths = cfg.n_paths as i32;
-    let n_steps = cfg.n_steps as i32;
-    let log_s0 = cfg.s0.ln() as f32;
-    let strike = cfg.k as f32;
-    let dt = (cfg.t / cfg.n_steps as f64) as f32;
-    let drift_dt = ((cfg.r - 0.5 * cfg.sigma * cfg.sigma) as f32) * dt;
-    let vol_dt = (cfg.sigma as f32) * dt.sqrt();
-    let discount = ((-cfg.r * cfg.t).exp()) as f32;
-    let seed = cfg.seed as u32;
-    let technique_mode = technique_mode(cfg.technique);
+    let n_paths = job.n_paths as i32;
+    let n_steps = job.n_steps as i32;
+    let log_s0 = job.s0.ln() as f32;
+    let strike = job.k as f32;
+    let dt = (job.t / job.n_steps as f64) as f32;
+    let drift_dt = ((job.r - 0.5 * job.sigma * job.sigma) as f32) * dt;
+    let vol_dt = (job.sigma as f32) * dt.sqrt();
+    let discount = ((-job.r * job.t).exp()) as f32;
+    let seed = job.seed as u32;
+    let technique_mode = technique_mode(job.technique);
+    let payoff_mode = job.payoff_mode;
 
     set_scalar_bytes(encoder, 5, &n_paths);
     set_scalar_bytes(encoder, 6, &n_steps);
@@ -891,6 +956,7 @@ fn encode_pricing_pass(
     set_scalar_bytes(encoder, 11, &discount);
     set_scalar_bytes(encoder, 12, &seed);
     set_scalar_bytes(encoder, 13, &technique_mode);
+    set_scalar_bytes(encoder, 14, &payoff_mode);
 
     let threads_per_group = MTLSize {
         width: METAL_THREADGROUP_WIDTH as u64,
@@ -898,7 +964,7 @@ fn encode_pricing_pass(
         depth: 1,
     };
     let thread_groups = MTLSize {
-        width: reduction_group_count(effective_sample_count(cfg)) as u64,
+        width: reduction_group_count(effective_sample_count(job.technique, job.n_paths)) as u64,
         height: 1,
         depth: 1,
     };
@@ -941,10 +1007,10 @@ fn set_scalar_bytes<T>(encoder: &ComputeCommandEncoderRef, index: u64, value: &T
 }
 
 #[cfg(all(feature = "metal-native", target_os = "macos"))]
-fn effective_sample_count(cfg: &crate::EuropeanCallConfig) -> usize {
-    match cfg.technique {
-        MonteCarloTechnique::Standard | MonteCarloTechnique::ControlVariate => cfg.n_paths,
-        MonteCarloTechnique::Antithetic => cfg.n_paths.div_ceil(2),
+fn effective_sample_count(technique: MonteCarloTechnique, n_paths: usize) -> usize {
+    match technique {
+        MonteCarloTechnique::Standard | MonteCarloTechnique::ControlVariate => n_paths,
+        MonteCarloTechnique::Antithetic => n_paths.div_ceil(2),
     }
 }
 
@@ -971,10 +1037,12 @@ mod tests {
     use super::*;
     use crate::{
         runtime::cpu::{
+            arithmetic_asian_call_price_mc_cpu,
+            arithmetic_asian_call_price_mc_stepwise_from_f32_normals,
             european_call_price_mc_cpu_stepwise, european_call_price_mc_stepwise_from_f32_normals,
             generate_stepwise_stateless_normals_f32,
         },
-        EuropeanCallConfig,
+        ArithmeticAsianCallConfig, EuropeanCallConfig,
     };
 
     #[test]
@@ -987,7 +1055,7 @@ mod tests {
             technique: MonteCarloTechnique::Standard,
             ..EuropeanCallConfig::default()
         };
-        let metal = execute_metal_stepwise_kernel(&cfg, None)
+        let metal = execute_metal_stepwise_kernel(&StepwiseOptionJob::from_european(&cfg), None)
             .expect("native Metal stepwise kernel should execute successfully");
         let normals = generate_stepwise_stateless_normals_f32(cfg.seed, cfg.n_paths, cfg.n_steps);
         let cpu = european_call_price_mc_stepwise_from_f32_normals(&cfg, &normals);
@@ -1015,9 +1083,9 @@ mod tests {
             ..EuropeanCallConfig::default()
         };
 
-        let first = execute_metal_stepwise_kernel(&cfg, None)
+        let first = execute_metal_stepwise_kernel(&StepwiseOptionJob::from_european(&cfg), None)
             .expect("first native Metal execution should succeed");
-        let second = execute_metal_stepwise_kernel(&cfg, None)
+        let second = execute_metal_stepwise_kernel(&StepwiseOptionJob::from_european(&cfg), None)
             .expect("second native Metal execution should reuse cache and succeed");
 
         assert!((first.price - second.price).abs() <= 1e-6);
@@ -1035,7 +1103,7 @@ mod tests {
             ..EuropeanCallConfig::default()
         };
 
-        let metal = execute_metal_stepwise_kernel(&cfg, None)
+        let metal = execute_metal_stepwise_kernel(&StepwiseOptionJob::from_european(&cfg), None)
             .expect("native Metal antithetic execution should succeed");
         let cpu = european_call_price_mc_cpu_stepwise(&cfg);
         let price_error = (metal.price - cpu.price).abs();
@@ -1054,9 +1122,57 @@ mod tests {
             ..EuropeanCallConfig::default()
         };
 
-        let metal = execute_metal_stepwise_kernel(&cfg, None)
+        let metal = execute_metal_stepwise_kernel(&StepwiseOptionJob::from_european(&cfg), None)
             .expect("native Metal control-variate execution should succeed");
         let cpu = european_call_price_mc_cpu_stepwise(&cfg);
+        let price_error = (metal.price - cpu.price).abs();
+        let tolerance = 6.0 * metal.stderr.max(cpu.stderr);
+        assert!(price_error <= tolerance + 1e-12);
+    }
+
+    #[test]
+    fn native_metal_arithmetic_asian_matches_cpu_reference_from_same_normals() {
+        let cfg = ArithmeticAsianCallConfig {
+            n_paths: 4_096,
+            n_steps: 32,
+            seed: 911,
+            n_threads: 1,
+            technique: MonteCarloTechnique::Standard,
+            ..ArithmeticAsianCallConfig::default()
+        };
+        let metal =
+            execute_metal_stepwise_kernel(&StepwiseOptionJob::from_arithmetic_asian(&cfg), None)
+                .expect("native Metal arithmetic-Asian execution should succeed");
+        let normals = generate_stepwise_stateless_normals_f32(cfg.seed, cfg.n_paths, cfg.n_steps);
+        let cpu = arithmetic_asian_call_price_mc_stepwise_from_f32_normals(&cfg, &normals);
+
+        let price_error = (metal.price - cpu.price).abs();
+        let stderr_error = (metal.stderr - cpu.stderr).abs();
+        assert!(
+            price_error <= 1e-3,
+            "price mismatch too large: {price_error}"
+        );
+        assert!(
+            stderr_error <= 1e-4,
+            "stderr mismatch too large: {stderr_error}"
+        );
+    }
+
+    #[test]
+    fn native_metal_arithmetic_asian_control_variate_matches_cpu_reference() {
+        let cfg = ArithmeticAsianCallConfig {
+            n_paths: 4_096,
+            n_steps: 32,
+            seed: 912,
+            n_threads: 1,
+            technique: MonteCarloTechnique::ControlVariate,
+            ..ArithmeticAsianCallConfig::default()
+        };
+
+        let metal =
+            execute_metal_stepwise_kernel(&StepwiseOptionJob::from_arithmetic_asian(&cfg), None)
+                .expect("native Metal arithmetic-Asian control-variate execution should succeed");
+        let cpu = arithmetic_asian_call_price_mc_cpu(&cfg);
         let price_error = (metal.price - cpu.price).abs();
         let tolerance = 6.0 * metal.stderr.max(cpu.stderr);
         assert!(price_error <= tolerance + 1e-12);

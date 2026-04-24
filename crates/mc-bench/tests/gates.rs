@@ -39,6 +39,16 @@ fn benchmark_gates_hold_for_current_internal_suite() {
         accuracy
     );
 
+    let measured_planner_accuracy = find_metric("planner_choice_accuracy_measured", &report);
+    let measured_accuracy = measured_planner_accuracy
+        .metric_value
+        .expect("measured planner choice accuracy benchmark must contain metric_value");
+    assert!(
+        measured_accuracy >= 75.0,
+        "planner_choice_accuracy_measured gate failed: accuracy_pct={} expected>=75",
+        measured_accuracy
+    );
+
     let rust_mc = find_metric("mc_cpu_european_call_rust", &report);
     assert!(
         rust_mc.total_runtime_ms > 0.0,

@@ -23,12 +23,14 @@ Today we have:
 - an actual staged Metal shader source plus `.air` / `.metallib` compile-attempt plumbing behind `metal-native`
 - a first native Metal execution path on macOS using in-process Rust host integration and cached pipelines
 - benchmark-calibrated planner heuristics that now prefer Apple Metal for the measured medium-large Apple workload band
+- a measured planner-accuracy benchmark against local backend winners on the current machine
 - measured CPU-vs-Metal benchmark data on macOS for the first native Apple GPU path
+- a second native workload family on Metal for arithmetic Asian calls with control-variate support
 
 Today we do not yet have:
 
 - native CUDA kernel execution
-- planner decisions calibrated from measured backend behavior
+- cross-hardware planner decisions calibrated from measured backend behavior
 - dedicated native GPU hardware CI
 
 ## What Is Working Well
@@ -52,24 +54,27 @@ The architecture docs, roadmap, benchmark artifacts, and quality rules are unusu
 
 ### 1. GPU acceleration is real, but still narrow
 
-The planner and backend layers now execute through explicit delegated CPU fallback semantics, and they now include host-side native staging boundaries for CUDA and Metal. CUDA has a real staged `.cu` kernel source and PTX compile-attempt path. Metal has a real staged `.metal` source, `.air` / `.metallib` compile-attempt path, and an in-process native runtime execution path on macOS with cached pipelines and on-device reductions. CUDA still does not run native kernels on-device yet, and the current Metal path is still narrow: it covers the first European-call step-wise workload family with `Standard`, `Antithetic`, and `ControlVariate`, but not broader simulation families yet.
+The planner and backend layers now execute through explicit delegated CPU fallback semantics, and they now include host-side native staging boundaries for CUDA and Metal. CUDA has a real staged `.cu` kernel source and PTX compile-attempt path. Metal has a real staged `.metal` source, `.air` / `.metallib` compile-attempt path, and an in-process native runtime execution path on macOS with cached pipelines and on-device reductions. CUDA still does not run native kernels on-device yet, and the current Metal path is still narrow in absolute terms, but it now covers two GBM step-wise workload families: European calls and arithmetic Asian calls.
 
-Current measured macOS release results for the tracked workload:
+Current measured macOS release results for the tracked workloads:
 
-- CPU step-wise Rust: about `15.129 ms`
-- native Metal step-wise: about `1.331 ms`
-- native Metal antithetic step-wise: about `0.772 ms`
-- native Metal control-variate step-wise: about `1.305 ms`
+- CPU step-wise Rust: about `21.818 ms`
+- native Metal step-wise: about `1.457 ms`
+- native Metal antithetic step-wise: about `1.013 ms`
+- native Metal control-variate step-wise: about `1.439 ms`
+- CPU arithmetic Asian step-wise: about `31.783 ms`
+- native Metal arithmetic Asian step-wise: about `1.751 ms`
+- native Metal arithmetic Asian control-variate step-wise: about `1.520 ms`
 
-So native Metal is now both functionally working and materially faster than the fair CPU baseline on this tracked workload family. The honest limitation is breadth, not this specific speed result: we still have one narrow native workload family, no native CUDA execution yet, and no benchmark matrix across larger problem shapes or broader simulation domains.
+So native Metal is now both functionally working and materially faster than the fair CPU baseline on the tracked European and arithmetic-Asian workload families. The honest limitation is still breadth, not this specific speed result: we still have only a narrow GBM option family, no native CUDA execution yet, and no benchmark matrix across larger problem shapes or broader simulation domains.
 
 That means the product now has a genuine Apple GPU acceleration story, but it still is not broad enough yet to claim general GPU leadership across the library.
 
-### 2. Planner “accuracy” is still synthetic
+### 2. Planner calibration is only partial so far
 
-`planner_choice_accuracy` is measured against a small internal set of expected outcomes, not against measured winner backends on real hardware across workload families.
+`planner_choice_accuracy` is still measured against a small internal set of expected outcomes. We now also have `planner_choice_accuracy_measured`, which checks the planner against measured local winners on the current machine. The latest measured value is `83.3%`, which is useful progress but still not a full cross-hardware calibration story.
 
-It is useful as a regression check, but it is not yet evidence that the planner is actually choosing the fastest backend in production conditions.
+It is useful as a regression and local-calibration check, but it is not yet evidence that the planner is choosing the fastest backend across production conditions or across CUDA hardware.
 
 ## Priority Order
 
@@ -112,7 +117,7 @@ The next useful agent-facing runtime features are:
 ## Concrete Build Sequence
 
 1. Implement the first CUDA kernel path.
-2. Implement the first Metal kernel path.
+2. Broaden Metal beyond the current GBM option family.
 3. Recalibrate planner heuristics from observed data.
 4. Add agent-facing explain and manifest helpers.
 5. Add scrambled Sobol / randomized quasi-Monte Carlo.

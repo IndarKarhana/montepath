@@ -42,6 +42,7 @@ kernel void mc_metal_european_call_stepwise_v1(
     constant float& discount [[buffer(11)]],
     constant uint& seed [[buffer(12)]],
     constant int& technique_mode [[buffer(13)]],
+    constant int& payoff_mode [[buffer(14)]],
     uint gid [[thread_position_in_grid]],
     uint tid [[thread_index_in_threadgroup]],
     uint group_id [[threadgroup_position_in_grid]]
@@ -61,29 +62,53 @@ kernel void mc_metal_european_call_stepwise_v1(
         if (gid < pair_count) {
             float log_a = log_s0;
             float log_b = log_s0;
+            float arithmetic_sum_a = 0.0f;
+            float arithmetic_sum_b = 0.0f;
 
             for (int step = 0; step < n_steps; ++step) {
                 float z = standard_normal(seed, gid, static_cast<uint>(step));
                 log_a += drift_dt + vol_dt * z;
                 log_b += drift_dt - vol_dt * z;
+                if (payoff_mode == 1) {
+                    arithmetic_sum_a += exp(log_a);
+                    arithmetic_sum_b += exp(log_b);
+                }
             }
 
             float s_a = exp(log_a);
             float s_b = exp(log_b);
-            float payoff_a = s_a > strike ? (s_a - strike) * discount : 0.0f;
-            float payoff_b = s_b > strike ? (s_b - strike) * discount : 0.0f;
+            float payoff_a = 0.0f;
+            float payoff_b = 0.0f;
+            if (payoff_mode == 1) {
+                float arithmetic_average_a = arithmetic_sum_a / float(n_steps);
+                float arithmetic_average_b = arithmetic_sum_b / float(n_steps);
+                payoff_a = arithmetic_average_a > strike ? (arithmetic_average_a - strike) * discount : 0.0f;
+                payoff_b = arithmetic_average_b > strike ? (arithmetic_average_b - strike) * discount : 0.0f;
+            } else {
+                payoff_a = s_a > strike ? (s_a - strike) * discount : 0.0f;
+                payoff_b = s_b > strike ? (s_b - strike) * discount : 0.0f;
+            }
             payoff = 0.5f * (payoff_a + payoff_b);
         }
     } else if (gid < static_cast<uint>(n_paths)) {
         float log_s_t = log_s0;
+        float arithmetic_sum = 0.0f;
 
         for (int step = 0; step < n_steps; ++step) {
             float z = standard_normal(seed, gid, static_cast<uint>(step));
             log_s_t += drift_dt + vol_dt * z;
+            if (payoff_mode == 1) {
+                arithmetic_sum += exp(log_s_t);
+            }
         }
 
         float s_t = exp(log_s_t);
-        payoff = s_t > strike ? (s_t - strike) * discount : 0.0f;
+        if (payoff_mode == 1) {
+            float arithmetic_average = arithmetic_sum / float(n_steps);
+            payoff = arithmetic_average > strike ? (arithmetic_average - strike) * discount : 0.0f;
+        } else {
+            payoff = s_t > strike ? (s_t - strike) * discount : 0.0f;
+        }
         if (technique_mode == 2) {
             control = discount * s_t;
             cross = payoff * control;

@@ -1,7 +1,8 @@
 use mc_core::{
-    builtin_backends, estimate_gpu_bytes_per_path, european_call_price_mc_cpu_stepwise,
-    plan_gpu_chunking, AppleMetalBackend, ArtifactExecutionMode, BackendDecisionReport,
-    BackendError, BackendExecutionInput, BackendId, DeviceInfo, EuropeanCallConfig, ExecutionPlan,
+    arithmetic_asian_call_price_mc_cpu, builtin_backends, estimate_gpu_bytes_per_path,
+    european_call_price_mc_cpu_stepwise, plan_gpu_chunking, AppleMetalBackend,
+    ArithmeticAsianCallConfig, ArtifactExecutionMode, BackendDecisionReport, BackendError,
+    BackendExecutionInput, BackendId, DeviceInfo, EuropeanCallConfig, ExecutionPlan,
     FeatureSummary, GpuChunkingConfig, NvidiaCudaBackend, PlannerMode, RejectedBackend,
     RuntimeBackend, SupportLevel,
 };
@@ -237,6 +238,31 @@ fn metal_execute_runs_with_deterministic_results() {
 }
 
 #[test]
+fn metal_execute_runs_with_deterministic_results_for_arithmetic_asian() {
+    let backend = AppleMetalBackend::new();
+    let artifact = backend
+        .compile(&test_plan(), &mock_metal_device())
+        .expect("metal fallback compile should succeed");
+    let input = BackendExecutionInput::ArithmeticAsianCall(ArithmeticAsianCallConfig {
+        n_paths: artifact.n_paths,
+        n_steps: artifact.n_steps,
+        seed: 89,
+        n_threads: 2,
+        ..ArithmeticAsianCallConfig::default()
+    });
+
+    let run1 = backend
+        .execute(&artifact, &input)
+        .expect("metal execute should succeed");
+    let run2 = backend
+        .execute(&artifact, &input)
+        .expect("metal execute should succeed");
+
+    assert_eq!(run1.price, run2.price);
+    assert_eq!(run1.stderr, run2.stderr);
+}
+
+#[test]
 fn gpu_fallback_execute_rejects_mismatched_workload_shape() {
     let backend = NvidiaCudaBackend::new();
     let artifact = backend
@@ -250,6 +276,27 @@ fn gpu_fallback_execute_rejects_mismatched_workload_shape() {
                 n_paths: artifact.n_paths + 1,
                 n_steps: artifact.n_steps,
                 ..EuropeanCallConfig::default()
+            }),
+        )
+        .expect_err("mismatched workload should be rejected");
+
+    assert!(matches!(err, BackendError::IncompatibleExecutionInput));
+}
+
+#[test]
+fn gpu_fallback_execute_rejects_mismatched_workload_shape_for_arithmetic_asian() {
+    let backend = NvidiaCudaBackend::new();
+    let artifact = backend
+        .compile(&test_plan(), &mock_cuda_device())
+        .expect("cuda fallback compile should succeed");
+
+    let err = backend
+        .execute(
+            &artifact,
+            &BackendExecutionInput::ArithmeticAsianCall(ArithmeticAsianCallConfig {
+                n_paths: artifact.n_paths + 1,
+                n_steps: artifact.n_steps,
+                ..ArithmeticAsianCallConfig::default()
             }),
         )
         .expect_err("mismatched workload should be rejected");
@@ -285,6 +332,31 @@ fn cuda_fallback_matches_cpu_stepwise_reference() {
         cpu_run.price,
         tolerance
     );
+}
+
+#[test]
+fn metal_matches_cpu_reference_for_arithmetic_asian() {
+    let backend = AppleMetalBackend::new();
+    let artifact = backend
+        .compile(&test_plan(), &mock_metal_device())
+        .expect("metal compile should succeed");
+    let cfg = ArithmeticAsianCallConfig {
+        n_paths: artifact.n_paths,
+        n_steps: artifact.n_steps,
+        seed: 5_002,
+        n_threads: 4,
+        technique: mc_core::MonteCarloTechnique::ControlVariate,
+        ..ArithmeticAsianCallConfig::default()
+    };
+
+    let backend_run = backend
+        .execute(&artifact, &BackendExecutionInput::ArithmeticAsianCall(cfg))
+        .expect("metal execute should succeed");
+    let cpu_run = arithmetic_asian_call_price_mc_cpu(&cfg);
+
+    let error = (backend_run.price - cpu_run.price).abs();
+    let tolerance = 6.0 * backend_run.stderr.max(cpu_run.stderr);
+    assert!(error <= tolerance + 1e-12);
 }
 
 #[test]

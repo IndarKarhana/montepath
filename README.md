@@ -107,32 +107,39 @@ Agent integration guidance is in `docs/agent-integration-plan.md`.
 Public function inventory is in `docs/function-catalog.md`.
 Technique roadmap is in `docs/simulation-techniques.md`.
 GPU testing strategy is in `docs/gpu-testing-strategy.md`.
+Market landscape notes are in `docs/market-landscape.md`.
 
 ## Current Results
 
 From the latest release benchmark run:
 
-- fair step-wise Rust CPU path: `15.129 ms`
-- step-wise Rust antithetic path: `29.050 ms`
-- step-wise Rust control-variate path: `16.183 ms`
-- native Metal step-wise path on macOS: `1.331 ms`
-- native Metal antithetic step-wise path on macOS: `0.772 ms`
-- native Metal control-variate step-wise path on macOS: `1.305 ms`
+- fair step-wise Rust CPU path: `21.818 ms`
+- step-wise Rust antithetic path: `58.726 ms`
+- step-wise Rust control-variate path: `39.073 ms`
+- arithmetic Asian Rust CPU path: `31.783 ms`
+- arithmetic Asian Rust CPU control-variate path: `41.735 ms`
+- native Metal step-wise path on macOS: `1.457 ms`
+- native Metal antithetic step-wise path on macOS: `1.013 ms`
+- native Metal control-variate step-wise path on macOS: `1.439 ms`
+- native Metal arithmetic Asian path on macOS: `1.751 ms`
+- native Metal arithmetic Asian control-variate path on macOS: `1.520 ms`
 - step-wise NumPy baseline: see `benchmarks/release-results.json`
 - step-wise Numba baseline: see `benchmarks/release-results.json`
-- specialized Rust terminal-distribution fast path: `0.717 ms`
+- specialized Rust terminal-distribution fast path: `7.209 ms`
 - control-variate stderr ratio vs standard:
   - step-wise: `0.411`
   - terminal: `0.412`
+  - arithmetic Asian: `0.607`
 - antithetic stderr ratio vs standard:
   - step-wise: `0.747`
   - terminal: `0.741`
+- measured planner choice accuracy vs local backend winners: `83.3%`
 
 ## Next Steps
 
 - implement first NVIDIA CUDA kernels for the core workload path
-- broaden Apple Metal native coverage beyond the first European-call step-wise family
-- calibrate planner recommendations from measured backend winners once native GPU paths exist
+- broaden Apple Metal native coverage beyond the current GBM option family
+- keep calibrating planner recommendations from measured backend winners across more workload classes
 - expand Apple-specific planner heuristics beyond the current benchmark-calibrated medium-large workload band
 - expand competitor matrix to JAX/CuPy/PyTorch where environment allows
 - extend CI from CPU validation to native hardware validation once dedicated runners exist

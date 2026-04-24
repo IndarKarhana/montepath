@@ -1,6 +1,7 @@
 use mc_core::{
-    european_call_price_mc_cpu, european_call_price_mc_cpu_stepwise,
-    european_call_price_mc_cpu_terminal, EuropeanCallConfig, EuropeanCallMethod,
+    arithmetic_asian_call_price_mc_cpu, european_call_price_mc_cpu,
+    european_call_price_mc_cpu_stepwise, european_call_price_mc_cpu_terminal,
+    ArithmeticAsianCallConfig, ArithmeticAsianCallPricer, EuropeanCallConfig, EuropeanCallMethod,
     EuropeanCallPricer, MonteCarloRng, MonteCarloTechnique,
 };
 
@@ -152,6 +153,52 @@ fn european_call_mc_outputs_sane_values() {
 }
 
 #[test]
+fn arithmetic_asian_call_mc_is_deterministic_for_same_seed() {
+    let cfg = ArithmeticAsianCallConfig {
+        n_paths: 50_000,
+        n_steps: 64,
+        seed: 79,
+        n_threads: 4,
+        ..ArithmeticAsianCallConfig::default()
+    };
+
+    let r1 = arithmetic_asian_call_price_mc_cpu(&cfg);
+    let r2 = arithmetic_asian_call_price_mc_cpu(&cfg);
+    assert_eq!(r1, r2);
+}
+
+#[test]
+fn arithmetic_asian_call_control_variate_is_deterministic_for_same_seed() {
+    let cfg = ArithmeticAsianCallConfig {
+        n_paths: 50_000,
+        n_steps: 64,
+        seed: 80,
+        n_threads: 4,
+        technique: MonteCarloTechnique::ControlVariate,
+        ..ArithmeticAsianCallConfig::default()
+    };
+
+    let r1 = arithmetic_asian_call_price_mc_cpu(&cfg);
+    let r2 = arithmetic_asian_call_price_mc_cpu(&cfg);
+    assert_eq!(r1, r2);
+}
+
+#[test]
+fn arithmetic_asian_call_outputs_sane_values() {
+    let cfg = ArithmeticAsianCallConfig {
+        n_paths: 30_000,
+        n_steps: 64,
+        seed: 101,
+        ..ArithmeticAsianCallConfig::default()
+    };
+
+    let result = arithmetic_asian_call_price_mc_cpu(&cfg);
+    assert!(result.price >= 0.0);
+    assert!(result.stderr >= 0.0);
+    assert!(result.price < cfg.s0 * 2.0);
+}
+
+#[test]
 fn european_call_stepwise_is_close_to_black_scholes_price() {
     let cfg = EuropeanCallConfig {
         s0: 100.0,
@@ -219,6 +266,25 @@ fn pricer_builder_supports_control_variate_configuration() {
         .steps(64)
         .seed(889)
         .stepwise()
+        .control_variate()
+        .price();
+
+    assert!(result.price >= 0.0);
+    assert!(result.stderr >= 0.0);
+}
+
+#[test]
+fn arithmetic_asian_pricer_builder_supports_expressive_configuration() {
+    let result = ArithmeticAsianCallPricer::new()
+        .s0(100.0)
+        .strike(95.0)
+        .rate(0.03)
+        .volatility(0.2)
+        .maturity(1.0)
+        .paths(50_000)
+        .steps(64)
+        .seed(901)
+        .threads(2)
         .control_variate()
         .price();
 

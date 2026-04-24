@@ -64,6 +64,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Remove helper-based execution overhead via persistent in-process native host integration.
 - `done` Add benchmark-calibrated planner heuristics for Apple backend selection.
 - `done` Extend native Metal execution across the first European-call step-wise technique family (`Standard`, `Antithetic`, `ControlVariate`).
+- `done` Extend native Metal execution to a second workload family with arithmetic Asian calls and control-variate support.
 
 ## Phase 6: Benchmarks and Tuning
 
@@ -80,7 +81,8 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add benchmark methodology metadata so specialized fast paths are not confused with general-runtime comparisons.
 - `done` Add internal antithetic-quality benchmarking via stderr-ratio tracking.
 - `done` Add internal control-variate-quality benchmarking via stderr-ratio tracking.
-- `todo` Calibrate planner choice quality against measured backend winners, not only hand-authored expected scenarios.
+- `in-progress` Calibrate planner choice quality against measured backend winners, not only hand-authored expected scenarios.
+- `done` Add arithmetic Asian CPU and Apple Metal benchmark coverage.
 
 ## Phase 8: Advanced Simulation Techniques
 
@@ -105,6 +107,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `in-progress` Production-grade code quality and reliability standards.
 - `in-progress` Keep runtime lightweight, minimal overhead, and dependency-conscious.
 - `done` Research user-friendliness patterns from leading libraries and implement first UX improvements.
+- `done` Add an honest market-landscape document against leading Monte Carlo library categories.
 - `done` Add baseline CPU CI for format, test, and benchmark smoke checks.
 - `done` Validate feature-gated native backend staging in CPU-only CI.
 - `todo` Add native CUDA and Metal hardware CI on dedicated runners.
