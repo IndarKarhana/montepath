@@ -21,17 +21,17 @@ From `latest-results.json`:
 
 From `release-results.json`:
 
-- `mc_cpu_european_call_rust` (`stepwise_paths`): `14.491 ms` per run
-- `mc_cpu_european_call_rust_antithetic` (`stepwise_paths_antithetic`): `29.068 ms` per run
+- `mc_cpu_european_call_rust` (`stepwise_paths`): `15.129 ms` per run
+- `mc_cpu_european_call_rust_antithetic` (`stepwise_paths_antithetic`): `28.199 ms` per run
 - `mc_cpu_european_call_rust_antithetic_quality`: `stderr_ratio_vs_standard = 0.747`
-- `mc_cpu_european_call_rust_control_variate` (`stepwise_paths_control_variate`): `14.214 ms` per run
+- `mc_cpu_european_call_rust_control_variate` (`stepwise_paths_control_variate`): `14.248 ms` per run
 - `mc_cpu_european_call_rust_control_variate_quality`: `stderr_ratio_vs_standard = 0.411`
-- `mc_cpu_european_call_rust_terminal` (`terminal_distribution`): `0.637 ms` per run
-- `mc_cpu_european_call_rust_terminal_antithetic` (`terminal_distribution_antithetic`): `1.643 ms` per run
+- `mc_cpu_european_call_rust_terminal` (`terminal_distribution`): `0.621 ms` per run
+- `mc_cpu_european_call_rust_terminal_antithetic` (`terminal_distribution_antithetic`): `1.186 ms` per run
 - `mc_cpu_european_call_rust_terminal_antithetic_quality`: `stderr_ratio_vs_standard = 0.741`
-- `mc_cpu_european_call_rust_terminal_control_variate`: `0.774 ms` per run
+- `mc_cpu_european_call_rust_terminal_control_variate`: `0.610 ms` per run
 - `mc_cpu_european_call_rust_terminal_control_variate_quality`: `stderr_ratio_vs_standard = 0.412`
-- `mc_metal_european_call_native` (`stepwise_paths_native_metal`): `637.569 ms` per run
+- `mc_metal_european_call_native` (`stepwise_paths_native_metal`): `1.252 ms` per run
 - `mc_cpu_european_call_numpy` (`stepwise_paths`): compare in `release-results.json`
 - `mc_cpu_european_call_numba` (`stepwise_paths`): compare in `release-results.json`
 

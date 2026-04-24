@@ -72,7 +72,7 @@ The Metal path now includes a matching staged shader source at:
 
 When `metal-native` is enabled and Apple developer tools are available, the backend attempts `.air` and `.metallib` compilation during artifact staging and records the result in native artifact metadata.
 
-On macOS, the first Metal-native execution path is now wired through the Metal runtime itself using a staged Swift helper. That means the current Apple GPU path can execute the first step-wise European-call kernel natively on supported Macs even when standalone `xcrun metal` tooling is not available. The current implementation now generates shocks on-device and performs partial reductions on-device, but it is still a narrow v1 path and it still pays heavy runtime helper overhead, so it remains a correctness-first bring-up rather than a final performance path.
+On macOS, the first Metal-native execution path now runs in-process from Rust using cached Metal library and pipeline state. The current Apple GPU path executes the first step-wise European-call kernel natively on supported Macs, generates shocks on-device, and reduces aggregates on-device down to a single final value before host readback. It is still a narrow v1 path, but it is now a real steady-state execution path rather than a helper-driven bring-up.
 
 ## Running Tests
 
@@ -108,17 +108,17 @@ Public function inventory is in `docs/function-catalog.md`.
 Technique roadmap is in `docs/simulation-techniques.md`.
 GPU testing strategy is in `docs/gpu-testing-strategy.md`.
 
-## Current CPU Results
+## Current Results
 
 From the latest release benchmark run:
 
-- fair step-wise Rust CPU path: `14.491 ms`
-- step-wise Rust antithetic path: `29.068 ms`
-- step-wise Rust control-variate path: `14.214 ms`
-- native Metal step-wise path on macOS: `637.569 ms`
+- fair step-wise Rust CPU path: `15.129 ms`
+- step-wise Rust antithetic path: `28.199 ms`
+- step-wise Rust control-variate path: `14.248 ms`
+- native Metal step-wise path on macOS: `1.252 ms`
 - step-wise NumPy baseline: see `benchmarks/release-results.json`
 - step-wise Numba baseline: see `benchmarks/release-results.json`
-- specialized Rust terminal-distribution fast path: `0.637 ms`
+- specialized Rust terminal-distribution fast path: `0.621 ms`
 - control-variate stderr ratio vs standard:
   - step-wise: `0.411`
   - terminal: `0.412`
@@ -128,8 +128,8 @@ From the latest release benchmark run:
 
 ## Next Steps
 
-- implement first NVIDIA CUDA kernels for core workload path
-- implement first Apple Metal kernels for core workload path
+- implement first NVIDIA CUDA kernels for the core workload path
+- broaden Apple Metal native coverage beyond the first standard step-wise workload
 - calibrate planner recommendations from measured backend winners once native GPU paths exist
 - add Apple-specific planner heuristics for Metal-first environments
 - expand competitor matrix to JAX/CuPy/PyTorch where environment allows

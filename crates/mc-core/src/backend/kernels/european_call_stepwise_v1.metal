@@ -1,6 +1,8 @@
 #include <metal_stdlib>
 using namespace metal;
 
+constant uint MC_THREADGROUP_WIDTH = 256u;
+
 inline uint hash_u32(uint x) {
     x += 0x9E3779B9u;
     x ^= x >> 16;
@@ -40,8 +42,8 @@ kernel void mc_metal_european_call_stepwise_v1(
     uint tid [[thread_index_in_threadgroup]],
     uint group_id [[threadgroup_position_in_grid]]
 ) {
-    threadgroup float local_payoffs[256];
-    threadgroup float local_payoff_sq[256];
+    threadgroup float local_payoffs[MC_THREADGROUP_WIDTH];
+    threadgroup float local_payoff_sq[MC_THREADGROUP_WIDTH];
 
     float payoff = 0.0f;
     if (gid < static_cast<uint>(n_paths)) {
@@ -60,7 +62,7 @@ kernel void mc_metal_european_call_stepwise_v1(
     local_payoff_sq[tid] = payoff * payoff;
     threadgroup_barrier(mem_flags::mem_threadgroup);
 
-    for (uint offset = 128; offset > 0; offset >>= 1) {
+    for (uint offset = MC_THREADGROUP_WIDTH / 2u; offset > 0; offset >>= 1u) {
         if (tid < offset) {
             local_payoffs[tid] += local_payoffs[tid + offset];
             local_payoff_sq[tid] += local_payoff_sq[tid + offset];
@@ -71,5 +73,35 @@ kernel void mc_metal_european_call_stepwise_v1(
     if (tid == 0) {
         partial_sums[group_id] = local_payoffs[0];
         partial_sq_sums[group_id] = local_payoff_sq[0];
+    }
+}
+
+kernel void mc_metal_reduce_sum_f32_v1(
+    device const float* input_values [[buffer(0)]],
+    device float* output_values [[buffer(1)]],
+    constant int& n_values [[buffer(2)]],
+    uint gid [[thread_position_in_grid]],
+    uint tid [[thread_index_in_threadgroup]],
+    uint group_id [[threadgroup_position_in_grid]]
+) {
+    threadgroup float local_values[MC_THREADGROUP_WIDTH];
+
+    float value = 0.0f;
+    if (gid < static_cast<uint>(n_values)) {
+        value = input_values[gid];
+    }
+
+    local_values[tid] = value;
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+
+    for (uint offset = MC_THREADGROUP_WIDTH / 2u; offset > 0; offset >>= 1u) {
+        if (tid < offset) {
+            local_values[tid] += local_values[tid + offset];
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+
+    if (tid == 0) {
+        output_values[group_id] = local_values[0];
     }
 }

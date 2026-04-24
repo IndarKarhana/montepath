@@ -106,14 +106,20 @@ fn cuda_supports_reports_pending_execution_for_valid_device() {
 }
 
 #[test]
-fn metal_supports_reports_pending_execution_for_valid_device() {
+fn metal_supports_reports_native_v1_status_for_valid_device() {
     let backend = AppleMetalBackend::new();
     let report = backend.supports(&test_plan(), &mock_metal_device());
 
     assert_eq!(report.support_level, SupportLevel::SupportedWithFallbacks);
-    assert!(report
-        .unsupported_features
-        .contains(&"native_metal_execution_not_implemented".to_string()));
+    if metal_native_feature_enabled() {
+        assert!(!report
+            .unsupported_features
+            .contains(&"native_metal_execution_not_implemented".to_string()));
+    } else {
+        assert!(report
+            .unsupported_features
+            .contains(&"metal_native_feature_disabled".to_string()));
+    }
 }
 
 #[test]
@@ -206,7 +212,7 @@ fn cuda_execute_runs_with_deterministic_fallback() {
 }
 
 #[test]
-fn metal_execute_runs_with_deterministic_fallback() {
+fn metal_execute_runs_with_deterministic_results() {
     let backend = AppleMetalBackend::new();
     let artifact = backend
         .compile(&test_plan(), &mock_metal_device())

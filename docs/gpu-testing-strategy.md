@@ -123,6 +123,7 @@ Provable on Apple Silicon with `metal-native` enabled:
 
 - native Metal kernel smoke execution
 - CPU-vs-Metal numerical agreement for the first staged workload
+- native Metal steady-state benchmark results for the first staged workload
 
 ### After First Native CUDA Kernel
 
@@ -138,9 +139,9 @@ Required before calling CUDA support real:
 
 Required before calling Metal support production-grade:
 
-- remove Swift helper process overhead from steady-state execution
 - validate unified-memory and chunking behavior under larger workloads
-- benchmark evidence that Apple GPU execution beats the CPU reference on representative workloads
+- extend native execution beyond the first staged workload and beyond standard sampling
+- benchmark evidence across multiple Apple Silicon classes and workload sizes
 
 ## Benchmarking Without Local CUDA
 

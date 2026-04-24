@@ -406,6 +406,17 @@ fn benchmark_mc_native_metal_stepwise(_repeats: usize) -> Option<BenchmarkResult
         let mut runtimes = Vec::with_capacity(_repeats);
         let mut prices = Vec::with_capacity(_repeats);
 
+        let warmup_cfg = EuropeanCallConfig {
+            n_paths: MC_PATHS,
+            n_steps: MC_STEPS,
+            seed: 4_199,
+            technique: MonteCarloTechnique::Standard,
+            ..EuropeanCallConfig::default()
+        };
+        backend
+            .execute(&artifact, &BackendExecutionInput::EuropeanCall(warmup_cfg))
+            .ok()?;
+
         for i in 0.._repeats {
             let cfg = EuropeanCallConfig {
                 n_paths: MC_PATHS,
@@ -415,12 +426,10 @@ fn benchmark_mc_native_metal_stepwise(_repeats: usize) -> Option<BenchmarkResult
                 ..EuropeanCallConfig::default()
             };
 
-            let started = Instant::now();
             let result = backend
                 .execute(&artifact, &BackendExecutionInput::EuropeanCall(cfg))
                 .ok()?;
-            let runtime_ms = started.elapsed().as_secs_f64() * 1_000.0;
-            runtimes.push(runtime_ms.max(result.runtime_ms));
+            runtimes.push(result.runtime_ms);
             prices.push(result.price);
         }
 

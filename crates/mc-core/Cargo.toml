@@ -8,10 +8,14 @@ authors.workspace = true
 [features]
 default = []
 cuda-native = []
-metal-native = []
+metal-native = ["dep:metal", "dep:objc"]
 native-gpu = ["cuda-native", "metal-native"]
 
 [dependencies]
 mc-schema = { path = "../mc-schema" }
 serde.workspace = true
 thiserror.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+metal = { version = "0.33", optional = true }
+objc = { version = "0.2", optional = true }
