@@ -175,6 +175,29 @@ fn auto_planner_prefers_cpu_when_steps_are_too_small_for_gpu() {
 }
 
 #[test]
+fn auto_planner_prefers_apple_for_benchmarked_medium_large_workloads() {
+    let spec = sample_spec(false);
+    let plan = plan_execution(
+        &spec,
+        RunConfig {
+            n_paths: 100_000,
+            n_steps: 64,
+            planner_mode: PlannerMode::Balanced,
+            backend_preference: BackendPreference::Auto,
+        },
+        &support_all(),
+    )
+    .expect("expected plan to be created");
+
+    assert_eq!(plan.backend, BackendId::AppleMetal);
+    assert!(plan
+        .decision_report
+        .reasons
+        .iter()
+        .any(|reason| reason.contains("Apple Metal")));
+}
+
+#[test]
 fn explicit_backend_request_fails_when_unsupported() {
     let spec = sample_spec(false);
     let err = plan_execution(

@@ -21,7 +21,13 @@ use super::{
     GpuBufferDirection, GpuChunkingConfig, GpuKernelContract, GpuLaunchDimensions,
     GpuScalarBinding, GpuValueType, ReproSupport, RuntimeBackend, SupportReport,
 };
-use crate::{MonteCarloTechnique, SupportLevel};
+#[cfg(all(feature = "metal-native", target_os = "macos"))]
+use crate::runtime::cpu::{
+    summarize_block_estimates, summarize_control_variate, summarize_payoffs, ControlVariateMoments,
+};
+use crate::SupportLevel;
+#[cfg(all(feature = "metal-native", target_os = "macos"))]
+use crate::MonteCarloTechnique;
 
 pub fn metal_native_feature_enabled() -> bool {
     cfg!(feature = "metal-native")
@@ -34,6 +40,12 @@ const FIRST_METAL_KERNEL_SOURCE_MODULE: &str =
     "crates/mc-core/src/backend/kernels/european_call_stepwise_v1.metal";
 const FIRST_METAL_KERNEL_SOURCE: &str = include_str!("kernels/european_call_stepwise_v1.metal");
 const METAL_THREADGROUP_WIDTH: usize = 256;
+#[cfg(all(feature = "metal-native", target_os = "macos"))]
+const METAL_TECHNIQUE_STANDARD: i32 = 0;
+#[cfg(all(feature = "metal-native", target_os = "macos"))]
+const METAL_TECHNIQUE_ANTITHETIC: i32 = 1;
+#[cfg(all(feature = "metal-native", target_os = "macos"))]
+const METAL_TECHNIQUE_CONTROL_VARIATE: i32 = 2;
 
 #[cfg(all(feature = "metal-native", target_os = "macos"))]
 thread_local! {
@@ -96,7 +108,7 @@ impl RuntimeBackend for AppleMetalBackend {
         }
 
         let mut warnings = vec![
-            "Apple Metal backend now has a narrow native v1 path for standard European-call stepwise execution"
+            "Apple Metal backend now has a narrow native v1 path for standard, antithetic, and control-variate European-call stepwise execution"
                 .to_string(),
         ];
         let mut unsupported_features = Vec::new();
@@ -112,7 +124,7 @@ impl RuntimeBackend for AppleMetalBackend {
         if metal_native_feature_enabled() {
             if cfg!(target_os = "macos") {
                 warnings.push(
-                    "metal-native feature enabled; execution uses in-process Metal runtime with cached pipelines on macOS"
+                    "metal-native feature enabled; execution uses in-process Metal runtime with cached pipelines and on-device reductions on macOS"
                         .to_string(),
                 );
             } else {
@@ -282,46 +294,72 @@ fn first_metal_kernel_contract(plan: &ExecutionPlan) -> GpuKernelContract {
                 value_type: GpuValueType::Float32,
                 element_count: threadgroups_x as usize,
             },
+            GpuBufferBinding {
+                binding_index: 2,
+                name: "partial_control_sums".to_string(),
+                direction: GpuBufferDirection::Output,
+                value_type: GpuValueType::Float32,
+                element_count: threadgroups_x as usize,
+            },
+            GpuBufferBinding {
+                binding_index: 3,
+                name: "partial_control_sq_sums".to_string(),
+                direction: GpuBufferDirection::Output,
+                value_type: GpuValueType::Float32,
+                element_count: threadgroups_x as usize,
+            },
+            GpuBufferBinding {
+                binding_index: 4,
+                name: "partial_cross_sums".to_string(),
+                direction: GpuBufferDirection::Output,
+                value_type: GpuValueType::Float32,
+                element_count: threadgroups_x as usize,
+            },
         ],
         scalars: vec![
             GpuScalarBinding {
-                binding_index: 2,
+                binding_index: 5,
                 name: "n_paths".to_string(),
                 value_type: GpuValueType::Int32,
             },
             GpuScalarBinding {
-                binding_index: 3,
+                binding_index: 6,
                 name: "n_steps".to_string(),
                 value_type: GpuValueType::Int32,
             },
             GpuScalarBinding {
-                binding_index: 4,
+                binding_index: 7,
                 name: "log_s0".to_string(),
                 value_type: GpuValueType::Float32,
             },
             GpuScalarBinding {
-                binding_index: 5,
+                binding_index: 8,
                 name: "strike".to_string(),
                 value_type: GpuValueType::Float32,
             },
             GpuScalarBinding {
-                binding_index: 6,
+                binding_index: 9,
                 name: "drift_dt".to_string(),
                 value_type: GpuValueType::Float32,
             },
             GpuScalarBinding {
-                binding_index: 7,
+                binding_index: 10,
                 name: "vol_dt".to_string(),
                 value_type: GpuValueType::Float32,
             },
             GpuScalarBinding {
-                binding_index: 8,
+                binding_index: 11,
                 name: "discount".to_string(),
                 value_type: GpuValueType::Float32,
             },
             GpuScalarBinding {
-                binding_index: 9,
+                binding_index: 12,
                 name: "seed".to_string(),
+                value_type: GpuValueType::Int32,
+            },
+            GpuScalarBinding {
+                binding_index: 13,
+                name: "technique_mode".to_string(),
                 value_type: GpuValueType::Int32,
             },
         ],
@@ -351,7 +389,7 @@ fn metal_kernel_notes(
             .to_string(),
         "native execution caches the Metal device, command queue, and compute pipeline state inside the Rust process"
             .to_string(),
-        "main pricing kernel now performs RNG and first-stage reductions on-device; follow-up reduction passes continue on-device until a single aggregate remains"
+        "main pricing kernel now performs RNG plus standard, antithetic, or control-variate moment accumulation on-device; follow-up reduction passes continue on-device until a single aggregate remains"
             .to_string(),
         format!(
             "validated target shape: n_paths={} n_steps={} conditional_expressions={}",
@@ -462,13 +500,6 @@ fn execute_native_metal_if_possible(
         return Err(BackendError::IncompatibleExecutionInput);
     }
 
-    if cfg.technique != MonteCarloTechnique::Standard {
-        return Err(BackendError::UnsupportedFeature(
-            "native Metal execution currently supports standard stepwise European call only"
-                .to_string(),
-        ));
-    }
-
     let started = Instant::now();
     let compiled_module_path = artifact
         .native_artifact
@@ -567,7 +598,8 @@ impl MetalRuntimeCache {
         cfg: &crate::EuropeanCallConfig,
     ) -> Result<crate::EuropeanCallResult, BackendError> {
         autoreleasepool(|| {
-            let main_group_count = reduction_group_count(cfg.n_paths);
+            let sample_count = effective_sample_count(cfg);
+            let main_group_count = reduction_group_count(sample_count);
             let partial_buffer_len = main_group_count.max(1);
             let partial_buffer_bytes = (partial_buffer_len * size_of::<f32>()) as u64;
 
@@ -583,6 +615,24 @@ impl MetalRuntimeCache {
             let partial_sq_sum_b = self
                 .device
                 .new_buffer(partial_buffer_bytes, MTLResourceOptions::StorageModeShared);
+            let partial_control_sum_a = self
+                .device
+                .new_buffer(partial_buffer_bytes, MTLResourceOptions::StorageModeShared);
+            let partial_control_sum_b = self
+                .device
+                .new_buffer(partial_buffer_bytes, MTLResourceOptions::StorageModeShared);
+            let partial_control_sq_sum_a = self
+                .device
+                .new_buffer(partial_buffer_bytes, MTLResourceOptions::StorageModeShared);
+            let partial_control_sq_sum_b = self
+                .device
+                .new_buffer(partial_buffer_bytes, MTLResourceOptions::StorageModeShared);
+            let partial_cross_sum_a = self
+                .device
+                .new_buffer(partial_buffer_bytes, MTLResourceOptions::StorageModeShared);
+            let partial_cross_sum_b = self
+                .device
+                .new_buffer(partial_buffer_bytes, MTLResourceOptions::StorageModeShared);
 
             let command_buffer = self.command_queue.new_command_buffer();
             encode_pricing_pass(
@@ -590,6 +640,9 @@ impl MetalRuntimeCache {
                 &self.pricing_pipeline,
                 &partial_sum_a,
                 &partial_sq_sum_a,
+                &partial_control_sum_a,
+                &partial_control_sq_sum_a,
+                &partial_cross_sum_a,
                 cfg,
             );
 
@@ -613,6 +666,27 @@ impl MetalRuntimeCache {
                         &partial_sq_sum_b,
                         current_count,
                     );
+                    encode_reduction_pass(
+                        command_buffer,
+                        &self.reduction_pipeline,
+                        &partial_control_sum_a,
+                        &partial_control_sum_b,
+                        current_count,
+                    );
+                    encode_reduction_pass(
+                        command_buffer,
+                        &self.reduction_pipeline,
+                        &partial_control_sq_sum_a,
+                        &partial_control_sq_sum_b,
+                        current_count,
+                    );
+                    encode_reduction_pass(
+                        command_buffer,
+                        &self.reduction_pipeline,
+                        &partial_cross_sum_a,
+                        &partial_cross_sum_b,
+                        current_count,
+                    );
                 } else {
                     encode_reduction_pass(
                         command_buffer,
@@ -626,6 +700,27 @@ impl MetalRuntimeCache {
                         &self.reduction_pipeline,
                         &partial_sq_sum_b,
                         &partial_sq_sum_a,
+                        current_count,
+                    );
+                    encode_reduction_pass(
+                        command_buffer,
+                        &self.reduction_pipeline,
+                        &partial_control_sum_b,
+                        &partial_control_sum_a,
+                        current_count,
+                    );
+                    encode_reduction_pass(
+                        command_buffer,
+                        &self.reduction_pipeline,
+                        &partial_control_sq_sum_b,
+                        &partial_control_sq_sum_a,
+                        current_count,
+                    );
+                    encode_reduction_pass(
+                        command_buffer,
+                        &self.reduction_pipeline,
+                        &partial_cross_sum_b,
+                        &partial_cross_sum_a,
                         current_count,
                     );
                 }
@@ -653,15 +748,48 @@ impl MetalRuntimeCache {
             } else {
                 &partial_sq_sum_b
             };
+            let final_control_sum_buffer = if final_data_in_a {
+                &partial_control_sum_a
+            } else {
+                &partial_control_sum_b
+            };
+            let final_control_sq_sum_buffer = if final_data_in_a {
+                &partial_control_sq_sum_a
+            } else {
+                &partial_control_sq_sum_b
+            };
+            let final_cross_sum_buffer = if final_data_in_a {
+                &partial_cross_sum_a
+            } else {
+                &partial_cross_sum_b
+            };
 
-            let payoff_sum = unsafe { *final_sum_buffer.contents().cast::<f32>() as f64 };
-            let payoff_sq_sum = unsafe { *final_sq_sum_buffer.contents().cast::<f32>() as f64 };
-            let n = cfg.n_paths as f64;
-            let price = payoff_sum / n;
-            let variance = ((payoff_sq_sum / n) - (price * price)).max(0.0);
-            let stderr = variance.sqrt() / n.sqrt();
+            let payoff_sum = read_first_f32(final_sum_buffer) as f64;
+            let payoff_sq_sum = read_first_f32(final_sq_sum_buffer) as f64;
 
-            Ok(crate::EuropeanCallResult { price, stderr })
+            let result = match cfg.technique {
+                MonteCarloTechnique::Standard => {
+                    summarize_payoffs(cfg.n_paths, payoff_sum, payoff_sq_sum)
+                }
+                MonteCarloTechnique::Antithetic => summarize_block_estimates(
+                    effective_sample_count(cfg),
+                    payoff_sum,
+                    payoff_sq_sum,
+                ),
+                MonteCarloTechnique::ControlVariate => {
+                    let moments = ControlVariateMoments {
+                        sample_count: cfg.n_paths,
+                        payoff_sum,
+                        payoff_sq_sum,
+                        control_sum: read_first_f32(final_control_sum_buffer) as f64,
+                        control_sq_sum: read_first_f32(final_control_sq_sum_buffer) as f64,
+                        payoff_control_cross_sum: read_first_f32(final_cross_sum_buffer) as f64,
+                    };
+                    summarize_control_variate(moments, cfg.s0)
+                }
+            };
+
+            Ok(result)
         })
     }
 }
@@ -730,12 +858,18 @@ fn encode_pricing_pass(
     pipeline: &ComputePipelineState,
     partial_sum_buffer: &metal::Buffer,
     partial_sq_sum_buffer: &metal::Buffer,
+    partial_control_sum_buffer: &metal::Buffer,
+    partial_control_sq_sum_buffer: &metal::Buffer,
+    partial_cross_sum_buffer: &metal::Buffer,
     cfg: &crate::EuropeanCallConfig,
 ) {
     let encoder = command_buffer.new_compute_command_encoder();
     encoder.set_compute_pipeline_state(pipeline);
     encoder.set_buffer(0, Some(partial_sum_buffer), 0);
     encoder.set_buffer(1, Some(partial_sq_sum_buffer), 0);
+    encoder.set_buffer(2, Some(partial_control_sum_buffer), 0);
+    encoder.set_buffer(3, Some(partial_control_sq_sum_buffer), 0);
+    encoder.set_buffer(4, Some(partial_cross_sum_buffer), 0);
 
     let n_paths = cfg.n_paths as i32;
     let n_steps = cfg.n_steps as i32;
@@ -746,15 +880,17 @@ fn encode_pricing_pass(
     let vol_dt = (cfg.sigma as f32) * dt.sqrt();
     let discount = ((-cfg.r * cfg.t).exp()) as f32;
     let seed = cfg.seed as u32;
+    let technique_mode = technique_mode(cfg.technique);
 
-    set_scalar_bytes(encoder, 2, &n_paths);
-    set_scalar_bytes(encoder, 3, &n_steps);
-    set_scalar_bytes(encoder, 4, &log_s0);
-    set_scalar_bytes(encoder, 5, &strike);
-    set_scalar_bytes(encoder, 6, &drift_dt);
-    set_scalar_bytes(encoder, 7, &vol_dt);
-    set_scalar_bytes(encoder, 8, &discount);
-    set_scalar_bytes(encoder, 9, &seed);
+    set_scalar_bytes(encoder, 5, &n_paths);
+    set_scalar_bytes(encoder, 6, &n_steps);
+    set_scalar_bytes(encoder, 7, &log_s0);
+    set_scalar_bytes(encoder, 8, &strike);
+    set_scalar_bytes(encoder, 9, &drift_dt);
+    set_scalar_bytes(encoder, 10, &vol_dt);
+    set_scalar_bytes(encoder, 11, &discount);
+    set_scalar_bytes(encoder, 12, &seed);
+    set_scalar_bytes(encoder, 13, &technique_mode);
 
     let threads_per_group = MTLSize {
         width: METAL_THREADGROUP_WIDTH as u64,
@@ -762,7 +898,7 @@ fn encode_pricing_pass(
         depth: 1,
     };
     let thread_groups = MTLSize {
-        width: reduction_group_count(cfg.n_paths) as u64,
+        width: reduction_group_count(effective_sample_count(cfg)) as u64,
         height: 1,
         depth: 1,
     };
@@ -804,6 +940,28 @@ fn set_scalar_bytes<T>(encoder: &ComputeCommandEncoderRef, index: u64, value: &T
     encoder.set_bytes(index, size_of::<T>() as u64, (value as *const T).cast());
 }
 
+#[cfg(all(feature = "metal-native", target_os = "macos"))]
+fn effective_sample_count(cfg: &crate::EuropeanCallConfig) -> usize {
+    match cfg.technique {
+        MonteCarloTechnique::Standard | MonteCarloTechnique::ControlVariate => cfg.n_paths,
+        MonteCarloTechnique::Antithetic => cfg.n_paths.div_ceil(2),
+    }
+}
+
+#[cfg(all(feature = "metal-native", target_os = "macos"))]
+fn technique_mode(technique: MonteCarloTechnique) -> i32 {
+    match technique {
+        MonteCarloTechnique::Standard => METAL_TECHNIQUE_STANDARD,
+        MonteCarloTechnique::Antithetic => METAL_TECHNIQUE_ANTITHETIC,
+        MonteCarloTechnique::ControlVariate => METAL_TECHNIQUE_CONTROL_VARIATE,
+    }
+}
+
+#[cfg(all(feature = "metal-native", target_os = "macos"))]
+fn read_first_f32(buffer: &metal::Buffer) -> f32 {
+    unsafe { *buffer.contents().cast::<f32>() }
+}
+
 fn reduction_group_count(n_values: usize) -> usize {
     n_values.div_ceil(METAL_THREADGROUP_WIDTH).max(1)
 }
@@ -813,7 +971,7 @@ mod tests {
     use super::*;
     use crate::{
         runtime::cpu::{
-            european_call_price_mc_stepwise_from_f32_normals,
+            european_call_price_mc_cpu_stepwise, european_call_price_mc_stepwise_from_f32_normals,
             generate_stepwise_stateless_normals_f32,
         },
         EuropeanCallConfig,
@@ -864,6 +1022,44 @@ mod tests {
 
         assert!((first.price - second.price).abs() <= 1e-6);
         assert!((first.stderr - second.stderr).abs() <= 1e-6);
+    }
+
+    #[test]
+    fn native_metal_antithetic_matches_cpu_reference() {
+        let cfg = EuropeanCallConfig {
+            n_paths: 4_096,
+            n_steps: 32,
+            seed: 909,
+            n_threads: 1,
+            technique: MonteCarloTechnique::Antithetic,
+            ..EuropeanCallConfig::default()
+        };
+
+        let metal = execute_metal_stepwise_kernel(&cfg, None)
+            .expect("native Metal antithetic execution should succeed");
+        let cpu = european_call_price_mc_cpu_stepwise(&cfg);
+        let price_error = (metal.price - cpu.price).abs();
+        let tolerance = 6.0 * metal.stderr.max(cpu.stderr);
+        assert!(price_error <= tolerance + 1e-12);
+    }
+
+    #[test]
+    fn native_metal_control_variate_matches_cpu_reference() {
+        let cfg = EuropeanCallConfig {
+            n_paths: 4_096,
+            n_steps: 32,
+            seed: 910,
+            n_threads: 1,
+            technique: MonteCarloTechnique::ControlVariate,
+            ..EuropeanCallConfig::default()
+        };
+
+        let metal = execute_metal_stepwise_kernel(&cfg, None)
+            .expect("native Metal control-variate execution should succeed");
+        let cpu = european_call_price_mc_cpu_stepwise(&cfg);
+        let price_error = (metal.price - cpu.price).abs();
+        let tolerance = 6.0 * metal.stderr.max(cpu.stderr);
+        assert!(price_error <= tolerance + 1e-12);
     }
 }
 

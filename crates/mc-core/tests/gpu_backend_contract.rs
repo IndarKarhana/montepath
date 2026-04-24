@@ -318,6 +318,56 @@ fn metal_fallback_matches_cpu_stepwise_reference() {
 }
 
 #[test]
+fn metal_backend_antithetic_matches_cpu_stepwise_reference() {
+    let backend = AppleMetalBackend::new();
+    let artifact = backend
+        .compile(&test_plan(), &mock_metal_device())
+        .expect("metal compile should succeed");
+    let cfg = EuropeanCallConfig {
+        n_paths: artifact.n_paths,
+        n_steps: artifact.n_steps,
+        seed: 5_102,
+        n_threads: 4,
+        technique: mc_core::MonteCarloTechnique::Antithetic,
+        ..EuropeanCallConfig::default()
+    };
+
+    let backend_run = backend
+        .execute(&artifact, &BackendExecutionInput::EuropeanCall(cfg))
+        .expect("metal execute should succeed");
+    let cpu_run = european_call_price_mc_cpu_stepwise(&cfg);
+
+    let error = (backend_run.price - cpu_run.price).abs();
+    let tolerance = 6.0 * backend_run.stderr.max(cpu_run.stderr);
+    assert!(error <= tolerance + 1e-12);
+}
+
+#[test]
+fn metal_backend_control_variate_matches_cpu_stepwise_reference() {
+    let backend = AppleMetalBackend::new();
+    let artifact = backend
+        .compile(&test_plan(), &mock_metal_device())
+        .expect("metal compile should succeed");
+    let cfg = EuropeanCallConfig {
+        n_paths: artifact.n_paths,
+        n_steps: artifact.n_steps,
+        seed: 5_103,
+        n_threads: 4,
+        technique: mc_core::MonteCarloTechnique::ControlVariate,
+        ..EuropeanCallConfig::default()
+    };
+
+    let backend_run = backend
+        .execute(&artifact, &BackendExecutionInput::EuropeanCall(cfg))
+        .expect("metal execute should succeed");
+    let cpu_run = european_call_price_mc_cpu_stepwise(&cfg);
+
+    let error = (backend_run.price - cpu_run.price).abs();
+    let tolerance = 6.0 * backend_run.stderr.max(cpu_run.stderr);
+    assert!(error <= tolerance + 1e-12);
+}
+
+#[test]
 fn gpu_chunk_plan_respects_memory_budget() {
     let plan = plan_gpu_chunking(
         1_000_000,

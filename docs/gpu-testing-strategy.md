@@ -123,7 +123,7 @@ Provable on Apple Silicon with `metal-native` enabled:
 
 - native Metal kernel smoke execution
 - CPU-vs-Metal numerical agreement for the first staged workload
-- native Metal steady-state benchmark results for the first staged workload
+- native Metal steady-state benchmark results for the first staged workload family
 
 ### After First Native CUDA Kernel
 

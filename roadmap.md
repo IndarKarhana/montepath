@@ -62,7 +62,8 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add CPU-vs-native-Metal benchmark coverage on macOS.
 - `done` Move first Metal-native RNG generation and full staged reductions on-device.
 - `done` Remove helper-based execution overhead via persistent in-process native host integration.
-- `todo` Add planner heuristics for Apple backend selection.
+- `done` Add benchmark-calibrated planner heuristics for Apple backend selection.
+- `done` Extend native Metal execution across the first European-call step-wise technique family (`Standard`, `Antithetic`, `ControlVariate`).
 
 ## Phase 6: Benchmarks and Tuning
 

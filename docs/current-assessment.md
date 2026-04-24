@@ -22,6 +22,7 @@ Today we have:
 - shared GPU launch and buffer contracts for staged native kernels
 - an actual staged Metal shader source plus `.air` / `.metallib` compile-attempt plumbing behind `metal-native`
 - a first native Metal execution path on macOS using in-process Rust host integration and cached pipelines
+- benchmark-calibrated planner heuristics that now prefer Apple Metal for the measured medium-large Apple workload band
 - measured CPU-vs-Metal benchmark data on macOS for the first native Apple GPU path
 
 Today we do not yet have:
@@ -51,14 +52,16 @@ The architecture docs, roadmap, benchmark artifacts, and quality rules are unusu
 
 ### 1. GPU acceleration is real, but still narrow
 
-The planner and backend layers now execute through explicit delegated CPU fallback semantics, and they now include host-side native staging boundaries for CUDA and Metal. CUDA has a real staged `.cu` kernel source and PTX compile-attempt path. Metal has a real staged `.metal` source, `.air` / `.metallib` compile-attempt path, and an in-process native runtime execution path on macOS with cached pipelines and on-device reductions. CUDA still does not run native kernels on-device yet, and the current Metal path is still narrow: it only covers the first standard European-call step-wise workload.
+The planner and backend layers now execute through explicit delegated CPU fallback semantics, and they now include host-side native staging boundaries for CUDA and Metal. CUDA has a real staged `.cu` kernel source and PTX compile-attempt path. Metal has a real staged `.metal` source, `.air` / `.metallib` compile-attempt path, and an in-process native runtime execution path on macOS with cached pipelines and on-device reductions. CUDA still does not run native kernels on-device yet, and the current Metal path is still narrow: it covers the first European-call step-wise workload family with `Standard`, `Antithetic`, and `ControlVariate`, but not broader simulation families yet.
 
 Current measured macOS release results for the tracked workload:
 
 - CPU step-wise Rust: about `15.129 ms`
-- native Metal step-wise: about `1.252 ms`
+- native Metal step-wise: about `1.331 ms`
+- native Metal antithetic step-wise: about `0.772 ms`
+- native Metal control-variate step-wise: about `1.305 ms`
 
-So native Metal is now both functionally working and materially faster than the fair CPU baseline on this tracked workload. The honest limitation is breadth, not this specific speed result: we only have one narrow native workload, no native CUDA execution yet, and no benchmark matrix across larger problem shapes or broader simulation techniques.
+So native Metal is now both functionally working and materially faster than the fair CPU baseline on this tracked workload family. The honest limitation is breadth, not this specific speed result: we still have one narrow native workload family, no native CUDA execution yet, and no benchmark matrix across larger problem shapes or broader simulation domains.
 
 That means the product now has a genuine Apple GPU acceleration story, but it still is not broad enough yet to claim general GPU leadership across the library.
 

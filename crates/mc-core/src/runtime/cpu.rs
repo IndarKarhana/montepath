@@ -478,17 +478,17 @@ fn simulate_terminal_parallel(
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-struct ControlVariateMoments {
-    sample_count: usize,
-    payoff_sum: f64,
-    payoff_sq_sum: f64,
-    control_sum: f64,
-    control_sq_sum: f64,
-    payoff_control_cross_sum: f64,
+pub(crate) struct ControlVariateMoments {
+    pub(crate) sample_count: usize,
+    pub(crate) payoff_sum: f64,
+    pub(crate) payoff_sq_sum: f64,
+    pub(crate) control_sum: f64,
+    pub(crate) control_sq_sum: f64,
+    pub(crate) payoff_control_cross_sum: f64,
 }
 
 impl ControlVariateMoments {
-    fn record(&mut self, payoff: f64, control: f64) {
+    pub(crate) fn record(&mut self, payoff: f64, control: f64) {
         self.sample_count += 1;
         self.payoff_sum += payoff;
         self.payoff_sq_sum += payoff * payoff;
@@ -497,7 +497,7 @@ impl ControlVariateMoments {
         self.payoff_control_cross_sum += payoff * control;
     }
 
-    fn merge(&mut self, other: Self) {
+    pub(crate) fn merge(&mut self, other: Self) {
         self.sample_count += other.sample_count;
         self.payoff_sum += other.payoff_sum;
         self.payoff_sq_sum += other.payoff_sq_sum;
@@ -801,7 +801,11 @@ fn simulate_stepwise_control_variate_chunk(
     moments
 }
 
-fn summarize_payoffs(n_paths: usize, payoff_sum: f64, payoff_sq_sum: f64) -> EuropeanCallResult {
+pub(crate) fn summarize_payoffs(
+    n_paths: usize,
+    payoff_sum: f64,
+    payoff_sq_sum: f64,
+) -> EuropeanCallResult {
     let n = n_paths as f64;
     let price = payoff_sum / n;
     let variance = (payoff_sq_sum / n) - (price * price);
@@ -810,7 +814,7 @@ fn summarize_payoffs(n_paths: usize, payoff_sum: f64, payoff_sq_sum: f64) -> Eur
     EuropeanCallResult { price, stderr }
 }
 
-fn summarize_block_estimates(
+pub(crate) fn summarize_block_estimates(
     block_count: usize,
     block_sum: f64,
     block_sq_sum: f64,
@@ -823,7 +827,7 @@ fn summarize_block_estimates(
     EuropeanCallResult { price, stderr }
 }
 
-fn summarize_control_variate(
+pub(crate) fn summarize_control_variate(
     moments: ControlVariateMoments,
     control_expectation: f64,
 ) -> EuropeanCallResult {

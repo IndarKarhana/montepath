@@ -335,7 +335,11 @@ fn plan_with_auto_backend(
                         "large parallel workload favored NVIDIA CUDA".to_string()
                     }
                     BackendId::AppleMetal => {
-                        "large parallel workload favored Apple Metal".to_string()
+                        if apple_metal_sweet_spot(&normalized, &features) {
+                            "benchmark-calibrated Apple Metal policy favored native Apple GPU execution".to_string()
+                        } else {
+                            "large parallel workload favored Apple Metal".to_string()
+                        }
                     }
                 });
 
@@ -370,7 +374,7 @@ fn plan_with_auto_backend(
 }
 
 fn backend_priority(normalized: &NormalizedRunConfig, features: &FeatureSummary) -> Vec<BackendId> {
-    const SMALL_WORK_THRESHOLD: usize = 8_000_000;
+    const SMALL_WORK_THRESHOLD: usize = 4_000_000;
     const GPU_WORK_THRESHOLD: usize = 40_000_000;
     const GPU_MIN_PATHS: usize = 200_000;
     const GPU_MIN_STEPS: usize = 32;
@@ -393,6 +397,12 @@ fn backend_priority(normalized: &NormalizedRunConfig, features: &FeatureSummary)
             BackendId::AppleMetal,
             BackendId::CpuNative,
         ]
+    } else if apple_metal_sweet_spot(normalized, features) {
+        vec![
+            BackendId::AppleMetal,
+            BackendId::CpuNative,
+            BackendId::NvidiaCuda,
+        ]
     } else {
         vec![
             BackendId::CpuNative,
@@ -400,4 +410,16 @@ fn backend_priority(normalized: &NormalizedRunConfig, features: &FeatureSummary)
             BackendId::AppleMetal,
         ]
     }
+}
+
+fn apple_metal_sweet_spot(normalized: &NormalizedRunConfig, features: &FeatureSummary) -> bool {
+    const APPLE_METAL_MIN_PATHS: usize = 75_000;
+    const APPLE_METAL_MIN_STEPS: usize = 32;
+    const APPLE_METAL_WORK_THRESHOLD: usize = 6_000_000;
+
+    let total_work = normalized.n_paths.saturating_mul(normalized.n_steps);
+    features.conditional_expression_count == 0
+        && normalized.n_paths >= APPLE_METAL_MIN_PATHS
+        && normalized.n_steps >= APPLE_METAL_MIN_STEPS
+        && total_work >= APPLE_METAL_WORK_THRESHOLD
 }

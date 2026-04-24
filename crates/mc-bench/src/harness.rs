@@ -46,6 +46,18 @@ pub fn run_default_benchmarks() -> BenchmarkReport {
     if let Some(metal_result) = benchmark_mc_native_metal_stepwise(MC_REPEATS) {
         results.push(metal_result);
     }
+    if let Some(metal_result) = benchmark_mc_native_metal_stepwise_antithetic(MC_REPEATS) {
+        results.push(metal_result);
+    }
+    if let Some(metal_quality) = benchmark_mc_native_metal_stepwise_antithetic_quality() {
+        results.push(metal_quality);
+    }
+    if let Some(metal_result) = benchmark_mc_native_metal_stepwise_control_variate(MC_REPEATS) {
+        results.push(metal_result);
+    }
+    if let Some(metal_quality) = benchmark_mc_native_metal_stepwise_control_variate_quality() {
+        results.push(metal_quality);
+    }
 
     results.extend(benchmark_python_competitors(
         MC_PATHS, MC_STEPS, MC_REPEATS, 42,
@@ -255,6 +267,21 @@ fn benchmark_planner_choice_accuracy() -> BenchmarkResult {
         Scenario {
             spec: sample_spec(false),
             run_config: RunConfig {
+                n_paths: 100_000,
+                n_steps: 64,
+                planner_mode: PlannerMode::Balanced,
+                backend_preference: BackendPreference::Auto,
+            },
+            support: vec![
+                BackendSupportReport::supported(BackendId::CpuNative),
+                BackendSupportReport::supported(BackendId::NvidiaCuda),
+                BackendSupportReport::supported(BackendId::AppleMetal),
+            ],
+            expected: BackendId::AppleMetal,
+        },
+        Scenario {
+            spec: sample_spec(false),
+            run_config: RunConfig {
                 n_paths: 1_000_000,
                 n_steps: 252,
                 planner_mode: PlannerMode::Balanced,
@@ -378,8 +405,41 @@ fn benchmark_mc_rust_cpu_stepwise(repeats: usize) -> BenchmarkResult {
 }
 
 fn benchmark_mc_native_metal_stepwise(_repeats: usize) -> Option<BenchmarkResult> {
+    benchmark_mc_native_metal_variant(
+        _repeats,
+        MonteCarloTechnique::Standard,
+        "mc_metal_european_call_native",
+        "stepwise_paths_native_metal",
+    )
+}
+
+fn benchmark_mc_native_metal_stepwise_antithetic(_repeats: usize) -> Option<BenchmarkResult> {
+    benchmark_mc_native_metal_variant(
+        _repeats,
+        MonteCarloTechnique::Antithetic,
+        "mc_metal_european_call_native_antithetic",
+        "stepwise_paths_native_metal_antithetic",
+    )
+}
+
+fn benchmark_mc_native_metal_stepwise_control_variate(_repeats: usize) -> Option<BenchmarkResult> {
+    benchmark_mc_native_metal_variant(
+        _repeats,
+        MonteCarloTechnique::ControlVariate,
+        "mc_metal_european_call_native_control_variate",
+        "stepwise_paths_native_metal_control_variate",
+    )
+}
+
+fn benchmark_mc_native_metal_variant(
+    _repeats: usize,
+    technique: MonteCarloTechnique,
+    benchmark_name: &str,
+    methodology: &str,
+) -> Option<BenchmarkResult> {
     #[cfg(not(feature = "metal-native"))]
     {
+        let _ = (_repeats, technique, benchmark_name, methodology);
         return None;
     }
 
@@ -410,7 +470,7 @@ fn benchmark_mc_native_metal_stepwise(_repeats: usize) -> Option<BenchmarkResult
             n_paths: MC_PATHS,
             n_steps: MC_STEPS,
             seed: 4_199,
-            technique: MonteCarloTechnique::Standard,
+            technique,
             ..EuropeanCallConfig::default()
         };
         backend
@@ -422,7 +482,7 @@ fn benchmark_mc_native_metal_stepwise(_repeats: usize) -> Option<BenchmarkResult
                 n_paths: MC_PATHS,
                 n_steps: MC_STEPS,
                 seed: 4_200 + i as u64,
-                technique: MonteCarloTechnique::Standard,
+                technique,
                 ..EuropeanCallConfig::default()
             };
 
@@ -437,11 +497,11 @@ fn benchmark_mc_native_metal_stepwise(_repeats: usize) -> Option<BenchmarkResult
         let avg_price = prices.iter().sum::<f64>() / prices.len() as f64;
 
         Some(BenchmarkResult {
-            benchmark_name: "mc_metal_european_call_native".to_string(),
+            benchmark_name: benchmark_name.to_string(),
             benchmark_version: "0.1".to_string(),
             implementation: "mc-core::backend::metal::AppleMetalBackend::execute".to_string(),
             backend: "apple_metal".to_string(),
-            methodology: Some("stepwise_paths_native_metal".to_string()),
+            methodology: Some(methodology.to_string()),
             planner_mode: "n/a".to_string(),
             iterations: _repeats,
             total_runtime_ms: avg_runtime_ms * _repeats as f64,
@@ -453,6 +513,103 @@ fn benchmark_mc_native_metal_stepwise(_repeats: usize) -> Option<BenchmarkResult
             },
             metric_name: Some("price_estimate".to_string()),
             metric_value: Some(avg_price),
+        })
+    }
+}
+
+fn benchmark_mc_native_metal_stepwise_antithetic_quality() -> Option<BenchmarkResult> {
+    benchmark_mc_native_metal_quality(
+        MonteCarloTechnique::Antithetic,
+        "mc_metal_european_call_native_antithetic_quality",
+        "stepwise_paths_native_metal_antithetic",
+        8_101,
+    )
+}
+
+fn benchmark_mc_native_metal_stepwise_control_variate_quality() -> Option<BenchmarkResult> {
+    benchmark_mc_native_metal_quality(
+        MonteCarloTechnique::ControlVariate,
+        "mc_metal_european_call_native_control_variate_quality",
+        "stepwise_paths_native_metal_control_variate",
+        8_102,
+    )
+}
+
+fn benchmark_mc_native_metal_quality(
+    technique: MonteCarloTechnique,
+    benchmark_name: &str,
+    methodology: &str,
+    seed: u64,
+) -> Option<BenchmarkResult> {
+    #[cfg(not(feature = "metal-native"))]
+    {
+        let _ = (technique, benchmark_name, methodology, seed);
+        return None;
+    }
+
+    #[cfg(feature = "metal-native")]
+    {
+        let backend = AppleMetalBackend::new();
+        let mut devices = backend.discover_devices();
+        let device = devices.pop()?;
+
+        let plan = ExecutionPlan {
+            backend: BackendId::AppleMetal,
+            planner_mode: PlannerMode::Balanced,
+            n_paths: MC_PATHS,
+            n_steps: MC_STEPS,
+            features: FeatureSummary::default(),
+            decision_report: BackendDecisionReport {
+                selected_backend: BackendId::AppleMetal,
+                reasons: vec!["native metal benchmark".to_string()],
+                rejected_backends: Vec::new(),
+            },
+        };
+
+        let artifact = backend.compile(&plan, &device).ok()?;
+        let standard_cfg = EuropeanCallConfig {
+            n_paths: MC_PATHS,
+            n_steps: MC_STEPS,
+            seed,
+            technique: MonteCarloTechnique::Standard,
+            ..EuropeanCallConfig::default()
+        };
+        let technique_cfg = EuropeanCallConfig {
+            technique,
+            ..standard_cfg
+        };
+
+        let standard = backend
+            .execute(
+                &artifact,
+                &BackendExecutionInput::EuropeanCall(standard_cfg),
+            )
+            .ok()?;
+        let adjusted = backend
+            .execute(
+                &artifact,
+                &BackendExecutionInput::EuropeanCall(technique_cfg),
+            )
+            .ok()?;
+        let stderr_ratio = if standard.stderr == 0.0 {
+            1.0
+        } else {
+            adjusted.stderr / standard.stderr
+        };
+
+        Some(BenchmarkResult {
+            benchmark_name: benchmark_name.to_string(),
+            benchmark_version: "0.1".to_string(),
+            implementation: "mc-core::backend::metal::AppleMetalBackend::execute".to_string(),
+            backend: "apple_metal".to_string(),
+            methodology: Some(methodology.to_string()),
+            planner_mode: "n/a".to_string(),
+            iterations: 1,
+            total_runtime_ms: 0.0,
+            per_iteration_us: 0.0,
+            throughput_per_sec: 0.0,
+            metric_name: Some("stderr_ratio_vs_standard".to_string()),
+            metric_value: Some(stderr_ratio),
         })
     }
 }
