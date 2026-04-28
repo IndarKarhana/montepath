@@ -270,6 +270,78 @@ def benchmark_scipy_qmc_generation(
     )
 
 
+def benchmark_quantlib_european(
+    n_paths: int, n_steps: int, repeats: int, seed: int
+) -> LibraryResult:
+    import QuantLib as ql
+
+    calendar = ql.NullCalendar()
+    day_count = ql.Actual365Fixed()
+    evaluation_date = ql.Date(2, ql.January, 2023)
+    maturity_date = ql.Date(2, ql.January, 2024)
+    ql.Settings.instance().evaluationDate = evaluation_date
+
+    spot = ql.QuoteHandle(ql.SimpleQuote(100.0))
+    dividend_curve = ql.YieldTermStructureHandle(
+        ql.FlatForward(evaluation_date, 0.0, day_count)
+    )
+    risk_free_curve = ql.YieldTermStructureHandle(
+        ql.FlatForward(evaluation_date, 0.03, day_count)
+    )
+    volatility = ql.BlackVolTermStructureHandle(
+        ql.BlackConstantVol(evaluation_date, calendar, 0.2, day_count)
+    )
+    process = ql.BlackScholesMertonProcess(
+        spot, dividend_curve, risk_free_curve, volatility
+    )
+    payoff = ql.PlainVanillaPayoff(ql.Option.Call, 100.0)
+    exercise = ql.EuropeanExercise(maturity_date)
+
+    times: list[float] = []
+    prices: list[float] = []
+    stderrs: list[float] = []
+
+    for rep in range(repeats):
+        option = ql.VanillaOption(payoff, exercise)
+
+        start = time.perf_counter()
+        engine = ql.MCEuropeanEngine(
+            process,
+            "pseudorandom",
+            timeSteps=n_steps,
+            brownianBridge=False,
+            antitheticVariate=False,
+            requiredSamples=n_paths,
+            seed=seed + rep,
+        )
+        option.setPricingEngine(engine)
+        price = float(option.NPV())
+        elapsed = (time.perf_counter() - start) * 1000.0
+
+        try:
+            stderr = float(option.errorEstimate())
+        except RuntimeError:
+            stderr = math.nan
+
+        times.append(elapsed)
+        prices.append(price)
+        if math.isfinite(stderr):
+            stderrs.append(stderr)
+
+    return LibraryResult(
+        library="quantlib",
+        methodology="stepwise_paths_quantlib_mceuropean",
+        available=True,
+        runtime_ms=sum(times) / len(times),
+        price=sum(prices) / len(prices),
+        stderr=(sum(stderrs) / len(stderrs)) if stderrs else None,
+        note=(
+            "QuantLib-Python MCEuropeanEngine with pseudorandom samples; "
+            "calendar/curve setup is fixed to match the tracked European call."
+        ),
+    )
+
+
 def unavailable(name: str, methodology: str | None, note: str) -> LibraryResult:
     return LibraryResult(
         library=name,
@@ -308,6 +380,30 @@ def main() -> int:
         results.append(unavailable("numba", "stepwise_paths", "package not installed"))
         results.append(
             unavailable("numba", "terminal_distribution", "package not installed")
+        )
+
+    if has_module("QuantLib"):
+        try:
+            results.append(
+                benchmark_quantlib_european(
+                    args.paths, args.steps, args.repeats, args.seed
+                )
+            )
+        except Exception as exc:
+            results.append(
+                unavailable(
+                    "quantlib",
+                    "stepwise_paths_quantlib_mceuropean",
+                    f"benchmark failed: {type(exc).__name__}: {exc}",
+                )
+            )
+    else:
+        results.append(
+            unavailable(
+                "quantlib",
+                "stepwise_paths_quantlib_mceuropean",
+                "QuantLib-Python package not installed",
+            )
         )
 
     if has_module("scipy") and has_module("numpy"):

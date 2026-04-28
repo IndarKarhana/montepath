@@ -1,4 +1,7 @@
 use mc_bench::{build_competitiveness_plan, run_compact_benchmarks};
+use serde_json::Value;
+use std::path::PathBuf;
+use std::process::Command;
 
 #[test]
 fn benchmark_harness_produces_non_empty_results() {
@@ -45,6 +48,51 @@ fn competitiveness_plan_is_generated() {
     let plan = build_competitiveness_plan(&report);
     assert!(plan.contains("Competitiveness Plan"));
     assert!(plan.contains("Action plan") || plan.contains("Maintain lead plan"));
+}
+
+#[test]
+fn python_competitor_script_reports_quantlib_lane() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|path| path.parent())
+        .expect("mc-bench should live under crates/")
+        .to_path_buf();
+
+    let output = Command::new("python3")
+        .arg("benchmarks/competitors/python_cpu_baselines.py")
+        .arg("--paths")
+        .arg("16")
+        .arg("--steps")
+        .arg("2")
+        .arg("--repeats")
+        .arg("1")
+        .arg("--seed")
+        .arg("7")
+        .current_dir(repo_root)
+        .output()
+        .expect("python competitor baseline script should run");
+
+    assert!(
+        output.status.success(),
+        "python competitor baseline script failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let payload: Value =
+        serde_json::from_slice(&output.stdout).expect("script should emit JSON payload");
+    let results = payload["results"]
+        .as_array()
+        .expect("payload should contain results array");
+
+    let quantlib = results
+        .iter()
+        .find(|entry| entry["library"].as_str() == Some("quantlib"))
+        .expect("QuantLib lane should be reported as available or unavailable");
+
+    assert_eq!(
+        quantlib["methodology"].as_str(),
+        Some("stepwise_paths_quantlib_mceuropean")
+    );
 }
 
 #[test]

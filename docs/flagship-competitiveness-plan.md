@@ -24,7 +24,7 @@ Every phase must maintain:
 
 ## Phase 1: Beat SciPy QMC On Structured Sampling
 
-Status: `in-progress`
+Status: `done`
 
 Primary competitor: SciPy `stats.qmc`.
 
@@ -61,7 +61,7 @@ Next action:
 
 ## Phase 2: Beat QuantLib On Selected Monte Carlo Workloads
 
-Status: `todo`
+Status: `in-progress`
 
 Primary competitor: QuantLib.
 
@@ -69,8 +69,8 @@ Target is not full QuantLib breadth. Target is selected Monte Carlo execution le
 
 Deliverables:
 
-- `todo` Add QuantLib competitor benchmark harness for overlapping option workloads.
-- `todo` Add basket option CPU runtime and benchmark.
+- `done` Add QuantLib competitor benchmark harness for overlapping option workloads.
+- `done` Add basket option CPU runtime and benchmark.
 - `todo` Add lookback option CPU runtime and benchmark.
 - `todo` Add Heston path simulation with reference validation.
 - `todo` Add Greeks: bump-and-revalue first, then pathwise and likelihood-ratio estimators.
@@ -81,6 +81,10 @@ Definition of done:
 
 - For selected MC workloads, our runtime is faster, easier to inspect, and more reproducible than QuantLib.
 - Docs remain honest that QuantLib is broader on calendars, curves, market conventions, and instruments.
+
+Next action:
+
+- Add a lookback option CPU runtime and benchmark with an explicit QuantLib comparison or unavailable row, then use the same harness pattern for Heston and Greeks.
 
 ## Phase 3: Become The Most User-Friendly MC Library
 

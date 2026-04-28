@@ -596,6 +596,10 @@ pub fn build_competitiveness_plan(report: &BenchmarkReport) -> String {
             r.benchmark_name == "mc_cpu_qmc_realized_error_european_scrambled_sobol_brownian_bridge"
         })
         .and_then(|r| r.metric_value);
+    let quantlib_unavailable = report.results.iter().any(|r| {
+        r.benchmark_name == "mc_cpu_european_call_quantlib_unavailable"
+            || r.benchmark_name == "mc_cpu_european_call_quantlib_terminal_unavailable"
+    });
 
     let mut competitor_rows = report
         .results
@@ -603,6 +607,7 @@ pub fn build_competitiveness_plan(report: &BenchmarkReport) -> String {
         .filter(|r| {
             r.benchmark_name == "mc_cpu_european_call_numpy"
                 || r.benchmark_name == "mc_cpu_european_call_numba"
+                || r.benchmark_name == "mc_cpu_european_call_quantlib"
         })
         .filter_map(|r| {
             r.runtime_ms().map(|runtime| {
@@ -667,7 +672,10 @@ pub fn build_competitiveness_plan(report: &BenchmarkReport) -> String {
         out.push_str("- Keep the step-wise benchmark as the primary competitive claim.\n");
         out.push_str("- Keep RNG and loop hot path allocation-free.\n");
         out.push_str("- Keep breadth claims tied to the workloads we have actually benchmarked: European, arithmetic Asian, down-and-out, basket, and Gaussian UQ.\n");
-        out.push_str("- Expand competitor matrix to GPU baselines (JAX/CuPy/PyTorch/CUDA-native) when hardware is available.\n");
+        if quantlib_unavailable {
+            out.push_str("- QuantLib comparison lane is wired but currently unavailable in this environment; install QuantLib-Python to populate the selected-workload scoreboard.\n");
+        }
+        out.push_str("- Expand competitor matrix to QuantLib exotic workloads and GPU baselines (JAX/CuPy/PyTorch/CUDA-native) when packages and hardware are available.\n");
         if let Some(runtime) = halton_runtime {
             out.push_str(&format!(
                 "- First randomized-QMC pricing surface is live via randomized Halton (`{:.3} ms`), but it is currently a quality-first pricing path rather than a speed leader.\n",

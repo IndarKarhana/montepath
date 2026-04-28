@@ -73,9 +73,10 @@ This roadmap is a living document and must be updated with every meaningful scop
 ## Phase 6: Benchmarks and Tuning
 
 - `done` Implement benchmark harness and result schema.
-- `in-progress` Add baseline comparisons against NumPy / Numba / JAX / CuPy where relevant.
+- `in-progress` Add baseline comparisons against NumPy / Numba / QuantLib / JAX / CuPy where relevant.
 - `done` Add automated CPU competitor baselines for NumPy and Numba.
 - `done` Add explicit availability reporting for JAX / CuPy / PyTorch in benchmark output.
+- `done` Add explicit QuantLib competitor reporting for the overlapping European Monte Carlo workload.
 - `done` Auto-generate competitiveness improvement plan when running benchmarks.
 - `done` Track planner decision quality via planner-choice accuracy benchmark.
 - `done` Define performance gates and regression thresholds.
@@ -135,8 +136,8 @@ This roadmap is a living document and must be updated with every meaningful scop
 
 See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 
-- `in-progress` Phase 1: Beat SciPy QMC on structured sampling for targeted workloads.
-- `todo` Phase 2: Beat QuantLib on selected Monte Carlo workloads.
+- `done` Phase 1: Beat SciPy QMC on structured sampling for targeted workloads.
+- `in-progress` Phase 2: Beat QuantLib on selected Monte Carlo workloads.
 - `todo` Phase 3: Become the most user-friendly Monte Carlo library.
 - `in-progress` Phase 4: Become AI-agent native.
 - `todo` Phase 5: Match JAX/CuPy/PyTorch accelerator credibility.

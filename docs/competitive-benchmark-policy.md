@@ -6,7 +6,7 @@ Benchmark against best-in-class libraries and keep `mc-library` at or above comp
 
 ## Baseline Competitor Set
 
-- CPU: NumPy, Numba
+- CPU: NumPy, Numba, QuantLib for overlapping quantitative-finance workloads
 - QMC: SciPy `stats.qmc`
 - GPU: JAX, CuPy, PyTorch (when hardware and environment permit)
 
