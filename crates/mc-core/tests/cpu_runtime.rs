@@ -1,7 +1,8 @@
 use mc_core::{
     arithmetic_asian_call_price_mc_cpu, arithmetic_asian_call_price_mlmc_cpu,
-    basket_call_price_mc_cpu, compare_arithmetic_asian_sampling_quality_cpu,
-    compare_basket_call_sampling_quality_cpu, compare_down_and_out_sampling_quality_cpu,
+    basket_call_price_mc_cpu, black_scholes_european_call_price,
+    compare_arithmetic_asian_sampling_quality_cpu, compare_basket_call_sampling_quality_cpu,
+    compare_down_and_out_sampling_quality_cpu, compare_european_call_realized_error_cpu,
     compare_european_call_sampling_quality_cpu, diagnose_standard_normals_cpu,
     down_and_out_call_price_mc_cpu, european_call_price_mc_cpu,
     european_call_price_mc_cpu_stepwise, european_call_price_mc_cpu_terminal,
@@ -216,6 +217,28 @@ fn pricing_quality_comparison_reports_structured_sampling_health() {
     assert!(comparison.price_delta_stderr_units.is_finite());
     assert!(comparison.normal_diagnostics.finite);
     assert!(comparison.guidance.is_power_of_two);
+}
+
+#[test]
+fn european_realized_error_comparison_uses_black_scholes_reference() {
+    let cfg = EuropeanCallConfig {
+        n_paths: 65_536,
+        n_steps: 64,
+        seed: 8_801,
+        ..EuropeanCallConfig::default()
+    };
+
+    let comparison = compare_european_call_realized_error_cpu(&cfg, SamplingMethod::LatinHypercube);
+    let analytic = black_scholes_european_call_price(cfg.s0, cfg.k, cfg.r, cfg.sigma, cfg.t);
+
+    assert_eq!(comparison.workload, PricingWorkloadFamily::EuropeanCall);
+    assert_eq!(comparison.sampling, SamplingMethod::LatinHypercube);
+    assert!((comparison.analytic_price - analytic).abs() < 1e-12);
+    assert!(comparison.pseudorandom_abs_error >= 0.0);
+    assert!(comparison.structured_abs_error >= 0.0);
+    assert!(comparison.abs_error_ratio_vs_pseudorandom.is_finite());
+    assert!(comparison.abs_error_ratio_vs_pseudorandom >= 0.0);
+    assert_eq!(comparison.guidance.dimensions, cfg.n_steps);
 }
 
 #[test]

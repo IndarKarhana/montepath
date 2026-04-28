@@ -6,13 +6,14 @@ use mc_core::{
     arithmetic_asian_call_price_mc_cpu, arithmetic_asian_call_price_mlmc_cpu,
     basket_call_price_mc_cpu, compare_arithmetic_asian_sampling_quality_cpu,
     compare_basket_call_sampling_quality_cpu, compare_down_and_out_sampling_quality_cpu,
-    compare_european_call_sampling_quality_cpu, down_and_out_call_price_mc_cpu,
-    european_call_price_mc_cpu_stepwise, european_call_price_mc_cpu_terminal,
-    gaussian_uncertainty_mean_cpu, generate_standard_normals_cpu, plan_execution,
-    solve_arithmetic_asian_mlmc_tolerance_cpu, ArithmeticAsianCallConfig,
-    ArithmeticAsianMlmcConfig, ArithmeticAsianMlmcToleranceConfig, BackendId, BackendPreference,
-    BackendSupportReport, BasketCallConfig, DownAndOutCallConfig, EuropeanCallConfig,
-    GaussianUncertaintyConfig, MonteCarloTechnique, PlannerMode, RunConfig, SamplingMethod,
+    compare_european_call_realized_error_cpu, compare_european_call_sampling_quality_cpu,
+    down_and_out_call_price_mc_cpu, european_call_price_mc_cpu_stepwise,
+    european_call_price_mc_cpu_terminal, gaussian_uncertainty_mean_cpu,
+    generate_standard_normals_cpu, plan_execution, solve_arithmetic_asian_mlmc_tolerance_cpu,
+    ArithmeticAsianCallConfig, ArithmeticAsianMlmcConfig, ArithmeticAsianMlmcToleranceConfig,
+    BackendId, BackendPreference, BackendSupportReport, BasketCallConfig, DownAndOutCallConfig,
+    EuropeanCallConfig, GaussianUncertaintyConfig, MonteCarloTechnique, PlannerMode, RunConfig,
+    SamplingMethod,
 };
 #[cfg(feature = "metal-native")]
 use mc_core::{
@@ -129,6 +130,26 @@ fn run_full_benchmarks() -> BenchmarkReport {
             SamplingMethod::ScrambledSobolBrownianBridge,
             "mc_cpu_qmc_quality_european_scrambled_sobol_brownian_bridge",
             "pricing_quality_european_scrambled_sobol_brownian_bridge",
+        ),
+        benchmark_mc_rust_cpu_european_realized_error(
+            SamplingMethod::RandomizedHalton,
+            "mc_cpu_qmc_realized_error_european_randomized_halton",
+            "realized_error_european_randomized_halton_black_scholes",
+        ),
+        benchmark_mc_rust_cpu_european_realized_error(
+            SamplingMethod::LatinHypercube,
+            "mc_cpu_qmc_realized_error_european_latin_hypercube",
+            "realized_error_european_latin_hypercube_black_scholes",
+        ),
+        benchmark_mc_rust_cpu_european_realized_error(
+            SamplingMethod::ScrambledSobol,
+            "mc_cpu_qmc_realized_error_european_scrambled_sobol",
+            "realized_error_european_scrambled_sobol_black_scholes",
+        ),
+        benchmark_mc_rust_cpu_european_realized_error(
+            SamplingMethod::ScrambledSobolBrownianBridge,
+            "mc_cpu_qmc_realized_error_european_scrambled_sobol_brownian_bridge",
+            "realized_error_european_scrambled_sobol_brownian_bridge_black_scholes",
         ),
         benchmark_mc_rust_cpu_down_and_out_stepwise(MC_REPEATS),
         benchmark_mc_rust_cpu_down_and_out_stepwise_control_variate(MC_REPEATS),
@@ -390,6 +411,11 @@ fn run_compact_benchmarks_inner() -> BenchmarkReport {
             "mc_cpu_qmc_quality_european_scrambled_sobol",
             "pricing_quality_european_scrambled_sobol",
         ),
+        benchmark_mc_rust_cpu_european_realized_error(
+            SamplingMethod::LatinHypercube,
+            "mc_cpu_qmc_realized_error_european_latin_hypercube",
+            "realized_error_european_latin_hypercube_black_scholes",
+        ),
         benchmark_mc_rust_cpu_asian_pricing_quality(
             SamplingMethod::LatinHypercube,
             "mc_cpu_qmc_quality_arithmetic_asian_latin_hypercube",
@@ -553,6 +579,23 @@ pub fn build_competitiveness_plan(report: &BenchmarkReport) -> String {
         .iter()
         .find(|r| r.benchmark_name == "mc_cpu_qmc_quality_basket_latin_hypercube")
         .and_then(|r| r.metric_value);
+    let european_lhs_realized_error = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "mc_cpu_qmc_realized_error_european_latin_hypercube")
+        .and_then(|r| r.metric_value);
+    let european_sobol_realized_error = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "mc_cpu_qmc_realized_error_european_scrambled_sobol")
+        .and_then(|r| r.metric_value);
+    let european_bridge_realized_error = report
+        .results
+        .iter()
+        .find(|r| {
+            r.benchmark_name == "mc_cpu_qmc_realized_error_european_scrambled_sobol_brownian_bridge"
+        })
+        .and_then(|r| r.metric_value);
 
     let mut competitor_rows = report
         .results
@@ -684,6 +727,16 @@ pub fn build_competitiveness_plan(report: &BenchmarkReport) -> String {
             out.push_str(&format!(
                 "- Basket-call QMC breadth is live: scrambled Sobol basket pricing `{:.3} ms`, Latin-hypercube stderr ratio vs pseudorandom `{:.3}`.\n",
                 runtime, ratio
+            ));
+        }
+        if let (Some(lhs_ratio), Some(sobol_ratio), Some(bridge_ratio)) = (
+            european_lhs_realized_error,
+            european_sobol_realized_error,
+            european_bridge_realized_error,
+        ) {
+            out.push_str(&format!(
+                "- European realized-error study is live against Black-Scholes: Latin hypercube abs-error ratio vs pseudorandom `{:.3}`, scrambled Sobol ratio `{:.3}`, Sobol Brownian-bridge ratio `{:.3}`.\n",
+                lhs_ratio, sobol_ratio, bridge_ratio
             ));
         }
         if let Some(ratio) = halton_cv_ratio {
@@ -2947,6 +3000,43 @@ fn benchmark_mc_rust_cpu_european_pricing_quality(
         },
         metric_name: Some("stderr_ratio_vs_pseudorandom".to_string()),
         metric_value: Some(comparison.stderr_ratio_vs_pseudorandom),
+    }
+}
+
+fn benchmark_mc_rust_cpu_european_realized_error(
+    sampling: SamplingMethod,
+    benchmark_name: &str,
+    methodology: &str,
+) -> BenchmarkResult {
+    let cfg = EuropeanCallConfig {
+        n_paths: MC_PATHS,
+        n_steps: MC_STEPS,
+        seed: 8_501,
+        ..EuropeanCallConfig::default()
+    };
+
+    let started = Instant::now();
+    let comparison = compare_european_call_realized_error_cpu(&cfg, sampling);
+    let runtime_ms = started.elapsed().as_secs_f64() * 1_000.0;
+
+    BenchmarkResult {
+        benchmark_name: benchmark_name.to_string(),
+        benchmark_version: "0.1".to_string(),
+        implementation: "mc-core::runtime::cpu::compare_european_call_realized_error_cpu"
+            .to_string(),
+        backend: "cpu_native".to_string(),
+        methodology: Some(methodology.to_string()),
+        planner_mode: "n/a".to_string(),
+        iterations: 1,
+        total_runtime_ms: runtime_ms,
+        per_iteration_us: runtime_ms * 1_000.0,
+        throughput_per_sec: if runtime_ms == 0.0 {
+            cfg.n_paths as f64
+        } else {
+            cfg.n_paths as f64 / (runtime_ms / 1_000.0)
+        },
+        metric_name: Some("abs_error_ratio_vs_pseudorandom".to_string()),
+        metric_value: Some(comparison.abs_error_ratio_vs_pseudorandom),
     }
 }
 

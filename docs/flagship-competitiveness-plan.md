@@ -46,7 +46,8 @@ Deliverables:
 - `done` Compare QMC pricing quality across European, arithmetic Asian, and down-and-out workloads.
 - `done` Add first non-option UQ workload with analytic-mean error tracking.
 - `done` Add basket workload QMC quality coverage.
-- `todo` Add realized-error QMC studies where analytic references exist.
+- `done` Add realized-error QMC studies where analytic references exist.
+- `done` Feed first realized-error evidence into method recommendations for European-call structured sampling.
 
 Definition of done:
 
@@ -56,7 +57,7 @@ Definition of done:
 
 Next action:
 
-- Add realized-error QMC studies for workloads with analytic references, then feed those results into method recommendations.
+- Broaden realized-error studies beyond the first European Black-Scholes reference where semi-analytic references are available, then move benchmark evidence into a measured recommendation database.
 
 ## Phase 2: Beat QuantLib On Selected Monte Carlo Workloads
 

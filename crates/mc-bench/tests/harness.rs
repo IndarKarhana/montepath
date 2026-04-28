@@ -89,6 +89,16 @@ fn rust_mc_benchmark_is_present() {
         Some("stderr_ratio_vs_pseudorandom")
     );
 
+    let realized_error = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "mc_cpu_qmc_realized_error_european_latin_hypercube")
+        .expect("European realized-error benchmark should be present");
+    assert_eq!(
+        realized_error.metric_name.as_deref(),
+        Some("abs_error_ratio_vs_pseudorandom")
+    );
+
     let basket = report
         .results
         .iter()

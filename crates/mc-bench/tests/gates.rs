@@ -147,6 +147,23 @@ fn benchmark_gates_hold_for_current_internal_suite() {
         );
     }
 
+    let realized_error = find_metric(
+        "mc_cpu_qmc_realized_error_european_latin_hypercube",
+        &report,
+    );
+    assert_eq!(
+        realized_error.metric_name.as_deref(),
+        Some("abs_error_ratio_vs_pseudorandom")
+    );
+    let realized_error_ratio = realized_error
+        .metric_value
+        .expect("European realized-error benchmark must contain metric_value");
+    assert!(
+        realized_error_ratio.is_finite() && realized_error_ratio >= 0.0,
+        "European realized-error gate failed: abs_error_ratio_vs_pseudorandom={} expected finite non-negative value",
+        realized_error_ratio
+    );
+
     let basket = find_metric("mc_cpu_basket_call_rust_scrambled_sobol", &report);
     assert!(
         basket.total_runtime_ms > 0.0,

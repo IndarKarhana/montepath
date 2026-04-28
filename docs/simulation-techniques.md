@@ -159,6 +159,26 @@ Practical notes:
 - current benchmark is intentionally narrow and analytic-reference-backed
 - use it as the first UQ quality signal, not as a general UQ modeling interface
 
+### 0.25. European Realized-Error QMC Validation
+
+Status:
+
+- supported now through `compare_european_call_realized_error_cpu`
+- benchmarked against the Black-Scholes analytic European-call reference
+- tracked across randomized Halton, Latin hypercube, scrambled Sobol, and scrambled Sobol with Brownian bridge
+
+Why it matters:
+
+- standard-error ratios can be neutral even when realized error improves materially for one seed and workload
+- analytic references let users and agents distinguish estimator uncertainty from actual miss distance to the target
+- this is the first bridge from QMC health checks into benchmark-backed method recommendations
+
+Practical notes:
+
+- realized error is seed- and path-count-sensitive, so treat one benchmark as evidence, not a universal convergence theorem
+- the Black-Scholes reference only covers the vanilla European GBM workload
+- path-dependent and multi-asset payoffs still need analytic, semi-analytic, or high-precision reference fixtures
+
 ### 0.5. Two-Asset Basket Pricing
 
 Status:
@@ -254,7 +274,7 @@ These matter, but they should not displace the core roadmap of:
 
 1. Keep standard, antithetic, control-variate, randomized Halton, Latin hypercube, and scrambled Sobol paths correct and benchmarked.
 2. Continue optimizing structured sampling so Halton, Latin hypercube, and Sobol variants are not purely breadth features.
-3. Expand randomized QMC quality studies across more workload shapes.
+3. Expand randomized QMC quality and realized-error studies across more workload shapes.
 4. Generalize control variates beyond the current discounted-terminal-stock pattern.
 5. Calibrate arithmetic Asian MLMC and MLQMC tolerance defaults against measured variance and cost.
 6. Broaden tolerance planning beyond the first arithmetic Asian reference path.

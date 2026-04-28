@@ -364,10 +364,19 @@ pub fn recommend_method(request: MethodRecommendationRequest) -> MethodRecommend
                 } else {
                     "scrambled Sobol is preferred over Halton for serious randomized-QMC coverage".to_string()
                 },
+                if matches!(request.workload_family, WorkloadFamily::EuropeanCall) {
+                    "European-call recommendations are now backed by realized-error benchmarking against a Black-Scholes analytic reference".to_string()
+                } else {
+                    "path-dependent recommendations are still based on estimator-quality metrics until analytic or semi-analytic references are attached".to_string()
+                },
             ],
             caveats: vec![
                 "structured sampling is currently CPU-reference only and falls back on native GPU backends".to_string(),
-                "recommendation is heuristic until more measured winner scenarios are collected".to_string(),
+                if matches!(request.workload_family, WorkloadFamily::EuropeanCall) {
+                    "Black-Scholes realized-error evidence applies to the European GBM reference workload; validate separately for path-dependent or multi-asset payoffs".to_string()
+                } else {
+                    "recommendation is heuristic until more measured winner scenarios are collected".to_string()
+                },
             ],
         };
     }

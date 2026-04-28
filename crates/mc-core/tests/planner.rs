@@ -156,6 +156,26 @@ fn method_recommendation_prefers_sobol_bridge_when_accuracy_is_prioritized() {
 }
 
 #[test]
+fn method_recommendation_cites_realized_error_for_european_structured_accuracy() {
+    let recommendation = recommend_method(MethodRecommendationRequest {
+        workload_family: WorkloadFamily::EuropeanCall,
+        n_paths: 100_000,
+        n_steps: 64,
+        prefer_accuracy: true,
+        allow_slower_structured_sampling: true,
+    });
+
+    assert!(recommendation
+        .reasons
+        .iter()
+        .any(|reason| reason.contains("realized-error")));
+    assert!(recommendation
+        .caveats
+        .iter()
+        .any(|caveat| caveat.contains("Black-Scholes")));
+}
+
+#[test]
 fn method_recommendation_prefers_mlqmc_for_arithmetic_asian_accuracy_with_structured_sampling() {
     let recommendation = recommend_method(MethodRecommendationRequest {
         workload_family: WorkloadFamily::ArithmeticAsianCall,

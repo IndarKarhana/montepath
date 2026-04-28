@@ -126,6 +126,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add cross-workload QMC pricing-quality comparisons against pseudorandom baselines.
 - `done` Add first non-option Gaussian UQ benchmark with analytic-mean error tracking.
 - `done` Add two-asset basket-call CPU workload and QMC quality benchmark coverage.
+- `done` Add European-call realized-error QMC benchmarks against the Black-Scholes analytic reference.
 - `in-progress` Optimize structured sampling so Halton, Latin hypercube, and Sobol variants are useful at larger path and step counts.
 - `in-progress` Calibrate MLMC level/path tolerance defaults and broaden beyond the first arithmetic Asian reference path.
 - `in-progress` Add stronger realized-vs-estimated error validation for multilevel Monte Carlo.

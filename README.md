@@ -151,42 +151,42 @@ Market landscape notes are in `docs/market-landscape.md`.
 
 From the latest release benchmark run:
 
-- fair step-wise Rust CPU European path: `13.269 ms`
-- step-wise Rust antithetic path: `28.091 ms`
-- step-wise Rust control-variate path: `12.596 ms`
-- arithmetic Asian Rust CPU path: `16.317 ms`
-- arithmetic Asian Rust CPU control-variate path: `16.376 ms`
-- arithmetic Asian Rust CPU MLMC path: `4.528 ms`
-- arithmetic Asian Rust CPU MLQMC path: `5.755 ms`
-- randomized Halton Rust CPU European path: `78.311 ms`
-- Latin hypercube Rust CPU European path: `65.046 ms`
-- scrambled Sobol Rust CPU European path: `80.240 ms`
-- scrambled Sobol Brownian bridge Rust CPU European path: `104.042 ms`
-- down-and-out Rust CPU path: `19.072 ms`
-- down-and-out Rust CPU control-variate path: `22.072 ms`
-- basket Rust CPU pseudorandom path: `3.985 ms`
-- basket Rust CPU Latin hypercube path: `3.982 ms`
-- basket Rust CPU scrambled Sobol path: `7.167 ms`
-- specialized Rust terminal-distribution fast path: `0.492 ms`
-- native Metal European path on macOS: `1.684 ms`
+- fair step-wise Rust CPU European path: `14.061 ms`
+- step-wise Rust antithetic path: `30.330 ms`
+- step-wise Rust control-variate path: `15.615 ms`
+- arithmetic Asian Rust CPU path: `19.976 ms`
+- arithmetic Asian Rust CPU control-variate path: `21.784 ms`
+- arithmetic Asian Rust CPU MLMC path: `4.733 ms`
+- arithmetic Asian Rust CPU MLQMC path: `7.266 ms`
+- randomized Halton Rust CPU European path: `86.695 ms`
+- Latin hypercube Rust CPU European path: `71.105 ms`
+- scrambled Sobol Rust CPU European path: `86.261 ms`
+- scrambled Sobol Brownian bridge Rust CPU European path: `114.053 ms`
+- down-and-out Rust CPU path: `60.738 ms`
+- down-and-out Rust CPU control-variate path: `22.168 ms`
+- basket Rust CPU pseudorandom path: `5.471 ms`
+- basket Rust CPU Latin hypercube path: `5.034 ms`
+- basket Rust CPU scrambled Sobol path: `8.178 ms`
+- specialized Rust terminal-distribution fast path: `0.632 ms`
+- native Metal European path on macOS: `1.451 ms`
 - native Metal European antithetic path on macOS: `0.964 ms`
-- native Metal European control-variate path on macOS: `1.666 ms`
-- native Metal arithmetic Asian path on macOS: `0.677 ms`
-- native Metal arithmetic Asian control-variate path on macOS: `0.683 ms`
-- native Metal down-and-out path on macOS: `0.693 ms`
-- native Metal down-and-out control-variate path on macOS: `0.724 ms`
-- NumPy fair CPU baseline: `77.161 ms`
-- Numba fair CPU baseline: `220.591 ms`
+- native Metal European control-variate path on macOS: `1.190 ms`
+- native Metal arithmetic Asian path on macOS: `1.461 ms`
+- native Metal arithmetic Asian control-variate path on macOS: `1.043 ms`
+- native Metal down-and-out path on macOS: `0.941 ms`
+- native Metal down-and-out control-variate path on macOS: `1.218 ms`
+- NumPy fair CPU baseline: `89.022 ms`
+- Numba fair CPU baseline: `231.833 ms`
 - measured planner choice accuracy vs local backend winners: `87.5%`
 
 Current QMC generation scoreboard from the same release run:
 
-- Rust scrambled Sobol normal generation: `74.359 ms`
-- SciPy scrambled Sobol normal generation: `120.144 ms`
-- Rust randomized Halton normal generation: `55.787 ms`
-- SciPy randomized Halton normal generation: `145.549 ms`
-- Rust Latin hypercube normal generation: `40.452 ms`
-- SciPy Latin hypercube normal generation: `195.598 ms`
+- Rust scrambled Sobol normal generation: `106.829 ms`
+- SciPy scrambled Sobol normal generation: `136.034 ms`
+- Rust randomized Halton normal generation: `81.437 ms`
+- SciPy randomized Halton normal generation: `200.467 ms`
+- Rust Latin hypercube normal generation: `45.736 ms`
+- SciPy Latin hypercube normal generation: `335.581 ms`
 
 Current QMC pricing-quality and UQ scoreboard from the same release run:
 
@@ -195,6 +195,10 @@ Current QMC pricing-quality and UQ scoreboard from the same release run:
 - down-and-out randomized Halton stderr ratio vs pseudorandom: `0.994`
 - basket Latin hypercube stderr ratio vs pseudorandom: `0.997`
 - basket scrambled Sobol stderr ratio vs pseudorandom: `0.996`
+- European randomized Halton abs-error ratio vs pseudorandom/Black-Scholes: `0.035`
+- European Latin hypercube abs-error ratio vs pseudorandom/Black-Scholes: `0.021`
+- European scrambled Sobol abs-error ratio vs pseudorandom/Black-Scholes: `0.129`
+- European scrambled Sobol Brownian bridge abs-error ratio vs pseudorandom/Black-Scholes: `0.001`
 - Gaussian UQ pseudorandom abs error vs analytic mean: `0.006344`
 - Gaussian UQ randomized Halton abs error vs analytic mean: `0.000056`
 - Gaussian UQ Latin hypercube abs error vs analytic mean: `0.000039`
@@ -224,11 +228,12 @@ What we can honestly claim now:
 - CPU performance is strong against the available NumPy and Numba baselines on the tracked fair European workload.
 - Native Apple Metal is materially faster than our CPU baseline on the tracked European, arithmetic Asian, and down-and-out workloads.
 - The library has better breadth than before, with four option workload families including a two-asset basket call, one non-option Gaussian UQ workload, randomized Halton, Latin hypercube, scrambled Sobol, and Brownian-bridge path construction. Direct QMC normal generation now beats the available SciPy QMC baselines on the tracked Sobol, Halton, and Latin-hypercube rows, and batched path-level filling has materially reduced structured-pricing overhead.
+- European QMC now has an analytic realized-error scoreboard against Black-Scholes, so accuracy claims for that workload are no longer limited to standard-error ratios.
 - MLMC and MLQMC foundations are live for arithmetic Asian calls with per-level estimator metadata, pilot-based allocation tuning, adaptive tolerance planning, and replicated Sobol scrambling. Adaptive MLMC is now a very fast CPU reference path on the tracked benchmark but needs better default calibration, while replicated MLQMC is faster than Asian step-wise and materially lower-error in the current run.
 
 What we should not overclaim yet:
 
-- structured sampling generation is now competitive and pricing overhead is much lower, but full structured-pricing paths still trail the pseudorandom CPU baseline and the first pricing stderr-ratio comparison is roughly neutral rather than a clear convergence win
+- structured sampling generation is now competitive and pricing overhead is much lower, but full structured-pricing paths still trail the pseudorandom CPU baseline; realized-error wins are currently benchmark evidence for the European analytic-reference case, not a universal guarantee
 - MLMC and MLQMC are CPU-reference only, and their tolerance planning is pilot-estimated rather than broadly calibrated across workload families
 - native CUDA execution is not implemented yet
 - planner calibration is improving, but `87.5%` measured local accuracy is not broad production-grade backend intelligence yet
@@ -236,7 +241,7 @@ What we should not overclaim yet:
 ## Next Steps
 
 - broaden Metal beyond the current GBM option family
-- broaden QMC quality comparisons beyond standard-error ratios into realized-error studies where analytic references exist
+- broaden QMC realized-error studies beyond the first European Black-Scholes reference where analytic or semi-analytic references exist
 - calibrate MLMC and MLQMC tolerance planning against realized estimator error across more workloads
 - keep calibrating planner recommendations from measured backend winners across more workload classes
 - expand competitor matrix to JAX/CuPy/PyTorch where environment allows

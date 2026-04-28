@@ -106,6 +106,30 @@ pub struct PricingQualityComparison {
     pub warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AnalyticPricingComparison {
+    pub workload: PricingWorkloadFamily,
+    pub sampling: SamplingMethod,
+    pub paths: usize,
+    pub steps: usize,
+    pub analytic_price: f64,
+    pub pseudorandom_price: f64,
+    pub pseudorandom_stderr: f64,
+    pub pseudorandom_error: f64,
+    pub pseudorandom_abs_error: f64,
+    pub pseudorandom_error_stderr_units: f64,
+    pub structured_price: f64,
+    pub structured_stderr: f64,
+    pub structured_error: f64,
+    pub structured_abs_error: f64,
+    pub structured_error_stderr_units: f64,
+    pub abs_error_ratio_vs_pseudorandom: f64,
+    pub abs_error_reduction_vs_pseudorandom: f64,
+    pub normal_diagnostics: StandardNormalDiagnostics,
+    pub guidance: StructuredSamplingGuidance,
+    pub warnings: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct GaussianUncertaintyConfig {
     pub n_samples: usize,
@@ -322,6 +346,33 @@ pub fn compare_european_call_sampling_quality_cpu(
     )
 }
 
+pub fn compare_european_call_realized_error_cpu(
+    cfg: &EuropeanCallConfig,
+    sampling: SamplingMethod,
+) -> AnalyticPricingComparison {
+    let mut baseline_cfg = *cfg;
+    baseline_cfg.sampling = SamplingMethod::Pseudorandom;
+    baseline_cfg.technique = MonteCarloTechnique::Standard;
+
+    let mut structured_cfg = baseline_cfg;
+    structured_cfg.sampling = sampling;
+
+    let baseline = european_call_price_mc_cpu_stepwise(&baseline_cfg);
+    let structured = european_call_price_mc_cpu_stepwise(&structured_cfg);
+    let analytic = black_scholes_european_call_price(cfg.s0, cfg.k, cfg.r, cfg.sigma, cfg.t);
+
+    build_analytic_pricing_comparison(
+        PricingWorkloadFamily::EuropeanCall,
+        sampling,
+        cfg.n_paths,
+        cfg.n_steps,
+        cfg.seed,
+        analytic,
+        baseline,
+        structured,
+    )
+}
+
 pub fn compare_arithmetic_asian_sampling_quality_cpu(
     cfg: &ArithmeticAsianCallConfig,
     sampling: SamplingMethod,
@@ -436,6 +487,112 @@ fn gaussian_uncertainty_response(z: &[f64]) -> f64 {
 
 fn gaussian_uncertainty_analytic_mean() -> f64 {
     1.0 + 0.005f64.exp()
+}
+
+pub fn black_scholes_european_call_price(s0: f64, k: f64, r: f64, sigma: f64, t: f64) -> f64 {
+    assert!(s0 > 0.0, "s0 must be > 0");
+    assert!(k >= 0.0, "k must be >= 0");
+    assert!(sigma >= 0.0, "sigma must be >= 0");
+    assert!(t >= 0.0, "t must be >= 0");
+
+    if k == 0.0 {
+        return s0;
+    }
+    if t == 0.0 {
+        return (s0 - k).max(0.0);
+    }
+    if sigma == 0.0 {
+        return (s0 - k * (-r * t).exp()).max(0.0);
+    }
+
+    let sqrt_t = t.sqrt();
+    let d1 = ((s0 / k).ln() + (r + 0.5 * sigma * sigma) * t) / (sigma * sqrt_t);
+    let d2 = d1 - sigma * sqrt_t;
+    s0 * standard_normal_cdf(d1) - k * (-r * t).exp() * standard_normal_cdf(d2)
+}
+
+fn standard_normal_cdf(x: f64) -> f64 {
+    let sign = if x < 0.0 { -1.0 } else { 1.0 };
+    let z = x.abs() / 2f64.sqrt();
+    let t = 1.0 / (1.0 + 0.3275911 * z);
+    let a1 = 0.254_829_592;
+    let a2 = -0.284_496_736;
+    let a3 = 1.421_413_741;
+    let a4 = -1.453_152_027;
+    let a5 = 1.061_405_429;
+    let poly = (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t;
+    let erf_approx = 1.0 - poly * (-z * z).exp();
+    0.5 * (1.0 + sign * erf_approx)
+}
+
+fn build_analytic_pricing_comparison(
+    workload: PricingWorkloadFamily,
+    sampling: SamplingMethod,
+    paths: usize,
+    steps: usize,
+    seed: u64,
+    analytic_price: f64,
+    pseudorandom: EuropeanCallResult,
+    structured: EuropeanCallResult,
+) -> AnalyticPricingComparison {
+    let pseudorandom_error = pseudorandom.price - analytic_price;
+    let pseudorandom_abs_error = pseudorandom_error.abs();
+    let structured_error = structured.price - analytic_price;
+    let structured_abs_error = structured_error.abs();
+    let denominator = pseudorandom_abs_error.max(f64::EPSILON);
+    let abs_error_ratio_vs_pseudorandom = structured_abs_error / denominator;
+    let abs_error_reduction_vs_pseudorandom = pseudorandom_abs_error - structured_abs_error;
+    let pseudorandom_error_stderr_units = if pseudorandom.stderr == 0.0 {
+        0.0
+    } else {
+        pseudorandom_error / pseudorandom.stderr
+    };
+    let structured_error_stderr_units = if structured.stderr == 0.0 {
+        0.0
+    } else {
+        structured_error / structured.stderr
+    };
+    let normal_diagnostics = diagnose_standard_normals_cpu(sampling, paths, steps, seed);
+    let guidance = structured_sampling_guidance_cpu(sampling, paths, steps);
+    let mut warnings = Vec::new();
+
+    if abs_error_ratio_vs_pseudorandom > 1.0 {
+        warnings.push(format!(
+            "structured realized error is {:.2}x the pseudorandom realized error for this analytic reference",
+            abs_error_ratio_vs_pseudorandom
+        ));
+    }
+    if structured_error_stderr_units.abs() > 3.0 {
+        warnings.push(format!(
+            "structured estimate is {:.2} standard errors from the analytic reference; validate with more paths or independent seeds",
+            structured_error_stderr_units.abs()
+        ));
+    }
+    warnings.extend(guidance.warnings.iter().cloned());
+    warnings.extend(normal_diagnostics.warnings.iter().cloned());
+
+    AnalyticPricingComparison {
+        workload,
+        sampling,
+        paths,
+        steps,
+        analytic_price,
+        pseudorandom_price: pseudorandom.price,
+        pseudorandom_stderr: pseudorandom.stderr,
+        pseudorandom_error,
+        pseudorandom_abs_error,
+        pseudorandom_error_stderr_units,
+        structured_price: structured.price,
+        structured_stderr: structured.stderr,
+        structured_error,
+        structured_abs_error,
+        structured_error_stderr_units,
+        abs_error_ratio_vs_pseudorandom,
+        abs_error_reduction_vs_pseudorandom,
+        normal_diagnostics,
+        guidance,
+        warnings,
+    }
 }
 
 fn build_pricing_quality_comparison(
