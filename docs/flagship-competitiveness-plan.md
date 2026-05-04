@@ -95,24 +95,34 @@ Evidence:
 
 ## Phase 3: Become The Most User-Friendly MC Library
 
-Status: `todo`
+Status: `done`
 
 Deliverables:
 
-- `todo` Add Python-first pricing helpers for common workloads.
-- `todo` Add typed Python models or dataclasses mirroring Rust configs.
-- `todo` Add `result.explain()`, `result.manifest`, and `result.reproduce()` concepts.
-- `todo` Add install profiles and troubleshooting docs for `cpu`, `metal`, and future `cuda`.
-- `todo` Add error-code documentation and examples.
-- `todo` Add notebooks for quants, researchers, and engineers.
-- `todo` Add PyPI packaging, wheel build automation, versioning policy, changelog, and release checklist.
-- `todo` Add docs-site structure with quickstarts, API reference, benchmark interpretation, and migration notes.
+- `done` Add Python-first pricing helpers for common workloads.
+- `done` Add typed Python models or dataclasses mirroring Rust configs.
+- `done` Add `result.explain()`, `result.manifest`, and `result.reproduce()` concepts.
+- `done` Add install profiles and troubleshooting docs for `cpu`, `metal`, and future `cuda`.
+- `done` Add error-code documentation and examples.
+- `done` Add notebooks for quants, researchers, and engineers.
+- `done` Add PyPI packaging, wheel build automation, versioning policy, changelog, and release checklist.
+- `done` Add docs-site structure with quickstarts, API reference, benchmark interpretation, and migration notes.
 
 Definition of done:
 
 - A new user can run, explain, and reproduce a path-dependent simulation in under five minutes.
 - User-facing errors include actionable fixes.
 - A user can install the package without checking out the repo, run common pricing/Greek workflows, and understand benchmark claims without reading source code.
+
+Evidence:
+
+- Python UX helpers: `python/mc_library/pricing.py`
+- Quickstart docs: `docs/site/quickstart.md`
+- API reference: `docs/site/api-reference.md`
+- Install profiles: `docs/install-profiles.md`
+- Error codes: `docs/error-codes.md`
+- Release checklist and changelog: `docs/release-checklist.md`, `CHANGELOG.md`
+- Package build workflow: `.github/workflows/python-package.yml`
 
 ## Phase 4: Become AI-Agent Native
 
@@ -193,11 +203,10 @@ Definition of done:
 
 These are the remaining durable phases before a serious v1:
 
-1. Phase 3: Python-first UX, packaging, docs, and release discipline.
-2. Phase 4: AI-agent-native manifests, schemas, and tool wrappers.
-3. Phase 5: accelerator credibility, competitor CI, and native CUDA.
-4. Phase 6: measured planner intelligence and method comparison surfaces.
-5. Phase 7: broader product/model/UQ coverage.
+1. Phase 4: AI-agent-native manifests, schemas, and tool wrappers.
+2. Phase 5: accelerator credibility, competitor CI, and native CUDA.
+3. Phase 6: measured planner intelligence and method comparison surfaces.
+4. Phase 7: broader product/model/UQ coverage.
 
 ## Always-Next Rule
 

@@ -29,6 +29,11 @@ Today we have:
   - Greek estimator matrix
   - reference fixture registry with explicit caveats
   - QuantLib-enabled CI benchmark artifact path
+- Phase 3 Python-first UX:
+  - typed pricing configs
+  - dependency-free pricing and European Greek helpers
+  - `manifest`, `explain()`, and `reproduce()` result concepts
+  - install profiles, error-code docs, docs-site skeleton, notebooks, and package build workflow
 - backend contracts, discovery scaffolding, and explicit fallback execution paths for NVIDIA and Apple
 - host-side native CUDA and Metal staging gates with kernel-manifest metadata and compile-time validation
 - a real native Metal execution path on macOS using in-process Rust host integration and cached pipelines

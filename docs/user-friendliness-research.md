@@ -57,10 +57,16 @@ This document summarizes what established libraries do well for usability and ho
 - compatibility validation with explicit unsupported-version errors
 - benchmark reporting that marks unavailable competitor libraries instead of silently omitting
 - benchmark methodology metadata so specialized and fair comparisons are clearly separated
+- Python-first immutable configs for common pricing workflows
+- Python `PricingResult` and `GreekReport` objects with `manifest`,
+  `explain()`, and `reproduce()`
+- Python `McConfigurationError` with code, message, and suggestion fields
+- install profile docs, error-code docs, quickstart/API docs, notebooks, and
+  wheel/source build workflow
 
 ## Next UX Implementation Steps
 
-- add user-facing Python API layer with builder and dataclass/Pydantic model parity
-- add error codes documentation table and troubleshooting pages
+- connect Python pricing helpers to compiled bindings when the stable extension
+  ABI is ready
 - add `explain_plan()` style textual helper for easier planner interpretation
-- add installation profiles (`cpu`, `cuda`, `metal`) with clear messaging
+- publish built distributions once release credentials and version gates are in place

@@ -27,6 +27,29 @@ This repository is in active build-out.
 - `crates/mc-schema`: schema types, diagnostics, compatibility, and validation
 - `crates/mc-core`: planner interfaces, backend contract, CPU runtime, and execution planning
 - `crates/mc-bench`: benchmark harness and benchmark result schema
+- `python/mc_library`: Python-first configs, pricing helpers, benchmark helpers, and method recommendations
+- `docs/site`: quickstarts, API reference, benchmark interpretation, and migration notes
+
+## Python Quickstart
+
+```bash
+python -m pip install -e .
+```
+
+```python
+from mc_library import EuropeanCallConfig, price_european_call, price_european_call_greeks
+
+cfg = EuropeanCallConfig(n_paths=20_000, n_steps=64, seed=42)
+price = price_european_call(cfg)
+greeks = price_european_call_greeks(cfg)
+
+print(price.explain())
+print(price.manifest)
+print(greeks.greeks)
+```
+
+The Python helpers are dependency-free reference UX helpers. Timing claims
+remain tied to Rust benchmark artifacts.
 
 ## Expressive API Example
 

@@ -150,7 +150,7 @@ See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 
 - `done` Phase 1: Beat SciPy QMC on structured sampling for targeted workloads.
 - `done` Phase 2: Beat QuantLib on selected Monte Carlo workloads with a capability catalog, Greek matrix, reference fixture registry, and QuantLib CI environment.
-- `todo` Phase 3: Become the most user-friendly Monte Carlo library with Python-first APIs, packaging, docs, and release discipline.
+- `done` Phase 3: Become the most user-friendly Monte Carlo library with Python-first APIs, packaging, docs, and release discipline.
 - `in-progress` Phase 4: Become AI-agent native with manifests, schemas, and safe tool wrappers.
 - `todo` Phase 5: Match JAX/CuPy/PyTorch accelerator credibility with native CUDA, hardware CI, and competitor environments.
 - `in-progress` Phase 6: Turn planner intelligence into a measured advantage with benchmark-backed winner databases and method comparison surfaces.
@@ -165,16 +165,15 @@ See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 - `done` Add an honest market-landscape document against leading Monte Carlo library categories.
 - `done` Add baseline CPU CI for format, test, and benchmark smoke checks.
 - `done` Validate feature-gated native backend staging in CPU-only CI.
-- `todo` Add PyPI packaging, wheel builds, crate release workflow, changelog, versioning policy, and release checklist.
-- `todo` Add docs-site structure with quickstarts, examples, benchmark interpretation, API reference, and migration notes.
+- `done` Add Python package metadata, wheel/source build workflow, changelog, versioning policy, and release checklist.
+- `done` Add docs-site structure with quickstarts, examples, benchmark interpretation, API reference, and migration notes.
 - `todo` Add native CUDA and Metal hardware CI on dedicated runners.
 
 ## Remaining V1 Completion Count
 
-There are `5` flagship completion phases remaining:
+There are `4` flagship completion phases remaining:
 
-1. Finish Phase 3 Python-first UX, packaging, docs, and release discipline.
-2. Finish Phase 4 AI-agent manifests, schemas, and safe tool wrappers.
-3. Finish Phase 5 accelerator credibility, competitor CI, and native CUDA.
-4. Finish Phase 6 measured planner intelligence.
-5. Finish Phase 7 broader product/model/UQ coverage.
+1. Finish Phase 4 AI-agent manifests, schemas, and safe tool wrappers.
+2. Finish Phase 5 accelerator credibility, competitor CI, and native CUDA.
+3. Finish Phase 6 measured planner intelligence.
+4. Finish Phase 7 broader product/model/UQ coverage.
