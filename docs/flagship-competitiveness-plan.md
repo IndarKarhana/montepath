@@ -152,7 +152,7 @@ Evidence:
 
 ## Phase 5: Match JAX/CuPy/PyTorch Accelerator Credibility
 
-Status: `in-progress`
+Status: `done`
 
 Deliverables:
 
@@ -188,17 +188,25 @@ Status: `in-progress`
 
 Deliverables:
 
-- `todo` Add measured winner database from local benchmark artifacts.
-- `todo` Add estimated-vs-realized error calibration for MLMC/MLQMC.
-- `todo` Add cost frontier reporting for method/backend choices.
-- `todo` Add `compare_methods` and `why_not_faster` surfaces.
-- `todo` Raise measured planner-choice accuracy above 95% on the tracked scenario suite.
-- `todo` Add planner evidence records that connect recommendations to benchmark artifact IDs, workload assumptions, and reference fixtures.
-- `todo` Add user/agent-facing planner explanations for rejected methods, unsupported estimators, and accuracy/runtime tradeoffs.
+- `done` Add measured winner database from local benchmark artifacts.
+- `done` Add estimated-vs-realized error calibration for MLMC/MLQMC.
+- `done` Add cost frontier reporting for method/backend choices.
+- `done` Add `compare_methods` and `why_not_faster` surfaces.
+- `done` Raise measured planner-choice accuracy above 95% on the tracked scenario suite.
+- `done` Add planner evidence records that connect recommendations to benchmark artifact IDs, workload assumptions, and reference fixtures.
+- `done` Add user/agent-facing planner explanations for rejected methods, unsupported estimators, and accuracy/runtime tradeoffs.
 
 Definition of done:
 
 - Planner choices are evidence-backed, explainable, overrideable, and accurate across the tracked workload families.
+
+Evidence:
+
+- Planner intelligence docs: `docs/planner-intelligence.md`
+- Python evidence surfaces: `python/mc_library/planner_intelligence.py`
+- Agent wrappers: `mc.planner_evidence`, `mc.cost_frontier`, `mc.compare_methods`, `mc.why_not_faster`, `mc.mlmc_calibration`
+- Release benchmark artifact: `benchmarks/release-results.json`
+- Current measured planner-choice accuracy: `100%` on the tracked local scenario suite.
 
 ## Phase 7: Broaden Product And Model Coverage
 
@@ -224,8 +232,7 @@ Definition of done:
 These are the remaining durable phases before a serious v1:
 
 1. Phase 5: accelerator credibility, competitor CI, and native CUDA.
-2. Phase 6: measured planner intelligence and method comparison surfaces.
-3. Phase 7: broader product/model/UQ coverage.
+2. Phase 7: broader product/model/UQ coverage.
 
 ## Always-Next Rule
 

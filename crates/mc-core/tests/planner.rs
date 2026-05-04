@@ -219,7 +219,7 @@ fn extract_features_counts_conditionals() {
 }
 
 #[test]
-fn auto_planner_prefers_cpu_for_small_workloads() {
+fn auto_planner_prefers_apple_for_benchmarked_small_stepwise_workloads() {
     let spec = sample_spec(false);
     let plan = plan_execution(
         &spec,
@@ -233,7 +233,7 @@ fn auto_planner_prefers_cpu_for_small_workloads() {
     )
     .expect("expected plan to be created");
 
-    assert_eq!(plan.backend, BackendId::CpuNative);
+    assert_eq!(plan.backend, BackendId::AppleMetal);
 }
 
 #[test]

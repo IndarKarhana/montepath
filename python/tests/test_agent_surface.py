@@ -3,12 +3,17 @@ import unittest
 from mc_library import (
     agent_benchmark,
     agent_compare,
+    agent_compare_methods,
+    agent_cost_frontier,
     agent_execute,
+    agent_mlmc_calibration,
     agent_plan,
+    agent_planner_evidence,
     agent_recommend,
     agent_reproduce,
     agent_tool_manifest,
     agent_validate,
+    agent_why_not_faster,
     export_json_schemas,
 )
 
@@ -26,12 +31,19 @@ class AgentSurfaceTests(unittest.TestCase):
         self.assertIn("mc.compare", tool_names)
         self.assertIn("mc.benchmark", tool_names)
         self.assertIn("mc.reproduce", tool_names)
+        self.assertIn("mc.planner_evidence", tool_names)
+        self.assertIn("mc.cost_frontier", tool_names)
+        self.assertIn("mc.compare_methods", tool_names)
+        self.assertIn("mc.why_not_faster", tool_names)
+        self.assertIn("mc.mlmc_calibration", tool_names)
 
     def test_json_schema_export_contains_execute_contract(self) -> None:
         schemas = export_json_schemas()
 
         self.assertIn("mc.execute.request", schemas)
         self.assertIn("mc.execute.response", schemas)
+        self.assertIn("mc.compare_methods.request", schemas)
+        self.assertIn("mc.why_not_faster.request", schemas)
         self.assertEqual(schemas["mc.execute.request"]["type"], "object")
         self.assertIn("workload", schemas["mc.execute.request"]["required"])
 
@@ -95,6 +107,26 @@ class AgentSurfaceTests(unittest.TestCase):
 
         self.assertTrue(reproduced["ok"])
         self.assertIn("price_down_and_out_call", reproduced["reproduction"]["python"])
+
+    def test_planner_evidence_tools_are_agent_safe(self) -> None:
+        evidence = agent_planner_evidence()
+        frontier = agent_cost_frontier({"workload": "european_call"})
+        comparison = agent_compare_methods({"workload": "arithmetic_asian_call"})
+        why_not = agent_why_not_faster(
+            {"workload": "european_call", "method_id": "scrambled_sobol"}
+        )
+        calibration = agent_mlmc_calibration({"workload": "arithmetic_asian_call"})
+
+        self.assertTrue(evidence["ok"])
+        self.assertGreaterEqual(evidence["result"]["measured_planner_accuracy_pct"], 95.0)
+        self.assertTrue(frontier["ok"])
+        self.assertGreaterEqual(len(frontier["result"]["frontier"]), 2)
+        self.assertTrue(comparison["ok"])
+        self.assertIn("recommended", comparison["result"])
+        self.assertTrue(why_not["ok"])
+        self.assertGreater(len(why_not["result"]["reasons"]), 0)
+        self.assertTrue(calibration["ok"])
+        self.assertIn("calibration_status", calibration["result"])
 
 
 if __name__ == "__main__":

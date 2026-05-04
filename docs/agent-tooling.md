@@ -29,6 +29,11 @@ Available tools:
 | `mc.compare` | Compare fast and accuracy-oriented method choices. | deterministic |
 | `mc.benchmark` | Return benchmark command metadata by default, or run when explicitly requested. | environment-sensitive when executed |
 | `mc.reproduce` | Build a reproduction recipe from a run manifest. | deterministic |
+| `mc.planner_evidence` | Load measured planner accuracy, winner records, and fixture references. | deterministic |
+| `mc.cost_frontier` | Return measured method/backend cost frontier rows for a workload. | deterministic |
+| `mc.compare_methods` | Compare measured method/runtime tradeoffs for a workload. | deterministic |
+| `mc.why_not_faster` | Explain why a requested method is not the measured recommendation. | deterministic |
+| `mc.mlmc_calibration` | Report estimated-vs-realized MLMC/MLQMC calibration evidence. | deterministic |
 
 ## Reproducibility Manifest
 
@@ -133,3 +138,21 @@ Dry-run plan response shape:
 The real response also includes `build`, `hardware`, and `determinism` fields.
 Those values vary by environment.
 
+## Planner Evidence Tools
+
+Planner intelligence tools read benchmark artifacts instead of making hidden
+performance assumptions. Example:
+
+```python
+from mc_library import agent_compare_methods, agent_why_not_faster
+
+comparison = agent_compare_methods({"workload": "arithmetic_asian_call"})
+explanation = agent_why_not_faster(
+    {"workload": "european_call", "method_id": "scrambled_sobol"}
+)
+```
+
+The response includes the benchmark artifact id, measured runtime frontier, and
+the same `agent-run.v1` manifest shape as the execution tools. Timing claims
+remain hardware-local; rerun benchmarks on the target machine before production
+tuning.

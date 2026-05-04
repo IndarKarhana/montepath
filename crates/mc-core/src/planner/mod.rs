@@ -457,10 +457,11 @@ fn plan_with_auto_backend(
                 reasons.push("selected by auto backend policy".to_string());
                 reasons.push(match backend {
                     BackendId::CpuNative => {
-                        if normalized.n_paths < 100_000 {
-                            "small workload favored CPU to avoid launch overhead".to_string()
-                        } else {
+                        if features.conditional_expression_count > 0 {
                             "conditional-heavy workload favored CPU".to_string()
+                        } else {
+                            "low-step workload favored CPU to avoid accelerator overhead"
+                                .to_string()
                         }
                     }
                     BackendId::NvidiaCuda => {
@@ -512,10 +513,8 @@ fn backend_priority(normalized: &NormalizedRunConfig, features: &FeatureSummary)
     const GPU_MIN_STEPS: usize = 32;
 
     let total_work = normalized.n_paths.saturating_mul(normalized.n_steps);
-    let prefers_cpu = features.conditional_expression_count > 0
-        || normalized.n_paths < 100_000
-        || total_work < SMALL_WORK_THRESHOLD
-        || normalized.n_steps < GPU_MIN_STEPS;
+    let prefers_cpu =
+        features.conditional_expression_count > 0 || normalized.n_steps < GPU_MIN_STEPS;
 
     if prefers_cpu {
         vec![
@@ -535,6 +534,12 @@ fn backend_priority(normalized: &NormalizedRunConfig, features: &FeatureSummary)
             BackendId::CpuNative,
             BackendId::NvidiaCuda,
         ]
+    } else if total_work < SMALL_WORK_THRESHOLD {
+        vec![
+            BackendId::CpuNative,
+            BackendId::NvidiaCuda,
+            BackendId::AppleMetal,
+        ]
     } else {
         vec![
             BackendId::CpuNative,
@@ -545,9 +550,9 @@ fn backend_priority(normalized: &NormalizedRunConfig, features: &FeatureSummary)
 }
 
 fn apple_metal_sweet_spot(normalized: &NormalizedRunConfig, features: &FeatureSummary) -> bool {
-    const APPLE_METAL_MIN_PATHS: usize = 75_000;
+    const APPLE_METAL_MIN_PATHS: usize = 10_000;
     const APPLE_METAL_MIN_STEPS: usize = 32;
-    const APPLE_METAL_WORK_THRESHOLD: usize = 6_000_000;
+    const APPLE_METAL_WORK_THRESHOLD: usize = 250_000;
 
     let total_work = normalized.n_paths.saturating_mul(normalized.n_steps);
     features.conditional_expression_count == 0

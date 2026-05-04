@@ -16,6 +16,13 @@ from typing import Any, Mapping
 
 from .benchmarks import run_benchmarks
 from .methods import recommend_method
+from .planner_intelligence import (
+    compare_methods,
+    cost_frontier,
+    load_planner_evidence,
+    mlmc_error_calibration,
+    why_not_faster,
+)
 from .pricing import (
     ArithmeticAsianCallConfig,
     DownAndOutCallConfig,
@@ -88,6 +95,41 @@ def agent_tool_manifest() -> dict[str, Any]:
             "mc.reproduce.response",
             deterministic=True,
         ),
+        _tool(
+            "mc.planner_evidence",
+            "Load benchmark-backed planner evidence, winner records, and fixture references.",
+            "mc.planner_evidence.request",
+            "mc.planner_evidence.response",
+            deterministic=True,
+        ),
+        _tool(
+            "mc.cost_frontier",
+            "Return the measured method/backend cost frontier for a workload.",
+            "mc.cost_frontier.request",
+            "mc.cost_frontier.response",
+            deterministic=True,
+        ),
+        _tool(
+            "mc.compare_methods",
+            "Compare measured method/runtime tradeoffs for a workload.",
+            "mc.compare_methods.request",
+            "mc.compare_methods.response",
+            deterministic=True,
+        ),
+        _tool(
+            "mc.why_not_faster",
+            "Explain why a requested method is not the current measured recommendation.",
+            "mc.why_not_faster.request",
+            "mc.why_not_faster.response",
+            deterministic=True,
+        ),
+        _tool(
+            "mc.mlmc_calibration",
+            "Report estimated-vs-realized MLMC and MLQMC error calibration evidence.",
+            "mc.mlmc_calibration.request",
+            "mc.mlmc_calibration.response",
+            deterministic=True,
+        ),
     ]
     return {
         "schema_version": "agent-tools.v1",
@@ -130,6 +172,24 @@ def export_json_schemas() -> dict[str, dict[str, Any]]:
         },
         "additionalProperties": False,
     }
+    planner_artifact_schema = {
+        "type": "object",
+        "properties": {
+            "repo_root": {"type": "string"},
+            "benchmark_artifact": {"type": "string"},
+        },
+        "additionalProperties": False,
+    }
+    planner_workload_schema = {
+        "type": "object",
+        "required": ["workload"],
+        "properties": {
+            "workload": {"type": "string"},
+            "repo_root": {"type": "string"},
+            "benchmark_artifact": {"type": "string"},
+        },
+        "additionalProperties": False,
+    }
 
     schemas = {
         "mc.validate.request": request_schema,
@@ -151,6 +211,34 @@ def export_json_schemas() -> dict[str, dict[str, Any]]:
             "additionalProperties": False,
         },
         "mc.reproduce.response": response_schema,
+        "mc.planner_evidence.request": planner_artifact_schema,
+        "mc.planner_evidence.response": response_schema,
+        "mc.cost_frontier.request": planner_workload_schema,
+        "mc.cost_frontier.response": response_schema,
+        "mc.compare_methods.request": planner_workload_schema,
+        "mc.compare_methods.response": response_schema,
+        "mc.why_not_faster.request": {
+            "type": "object",
+            "required": ["workload", "method_id"],
+            "properties": {
+                "workload": {"type": "string"},
+                "method_id": {"type": "string"},
+                "repo_root": {"type": "string"},
+                "benchmark_artifact": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+        "mc.why_not_faster.response": response_schema,
+        "mc.mlmc_calibration.request": {
+            "type": "object",
+            "properties": {
+                "workload": {"type": "string"},
+                "repo_root": {"type": "string"},
+                "benchmark_artifact": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+        "mc.mlmc_calibration.response": response_schema,
     }
     return schemas
 
@@ -424,6 +512,64 @@ def agent_reproduce(request: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def agent_planner_evidence(request: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    payload = dict(request or {})
+    evidence = load_planner_evidence(**_artifact_kwargs(payload))
+    return _planner_response(
+        tool="mc.planner_evidence",
+        workload="planner_evidence",
+        result=evidence,
+        method="planner_evidence",
+        reference=evidence.get("reference_fixtures"),
+    )
+
+
+def agent_cost_frontier(request: Mapping[str, Any]) -> dict[str, Any]:
+    workload = str(request.get("workload", ""))
+    result = cost_frontier(workload, **_artifact_kwargs(request))
+    return _planner_response(
+        tool="mc.cost_frontier",
+        workload=workload,
+        result=result,
+        method="cost_frontier",
+    )
+
+
+def agent_compare_methods(request: Mapping[str, Any]) -> dict[str, Any]:
+    workload = str(request.get("workload", ""))
+    result = compare_methods(workload, **_artifact_kwargs(request))
+    return _planner_response(
+        tool="mc.compare_methods",
+        workload=workload,
+        result=result,
+        method=result.get("recommended", {}).get("method_id", "method_comparison"),
+    )
+
+
+def agent_why_not_faster(request: Mapping[str, Any]) -> dict[str, Any]:
+    workload = str(request.get("workload", ""))
+    method_id = str(request.get("method_id", ""))
+    result = why_not_faster(workload, method_id=method_id, **_artifact_kwargs(request))
+    return _planner_response(
+        tool="mc.why_not_faster",
+        workload=workload,
+        result=result,
+        method=method_id or "unknown",
+    )
+
+
+def agent_mlmc_calibration(request: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    payload = dict(request or {})
+    workload = str(payload.get("workload", "arithmetic_asian_call"))
+    result = mlmc_error_calibration(workload, **_artifact_kwargs(payload))
+    return _planner_response(
+        tool="mc.mlmc_calibration",
+        workload=workload,
+        result=result,
+        method="mlmc_error_calibration",
+    )
+
+
 def _tool(
     name: str,
     description: str,
@@ -600,6 +746,39 @@ def _error_response(
             config=config,
             method="failed_validation",
             warnings=(error.message,),
+        ),
+    }
+
+
+def _artifact_kwargs(request: Mapping[str, Any]) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {}
+    if request.get("repo_root") is not None:
+        kwargs["repo_root"] = request["repo_root"]
+    if request.get("benchmark_artifact") is not None:
+        kwargs["benchmark_artifact"] = request["benchmark_artifact"]
+    return kwargs
+
+
+def _planner_response(
+    *,
+    tool: str,
+    workload: str,
+    result: dict[str, Any],
+    method: str | None,
+    reference: Any = None,
+) -> dict[str, Any]:
+    diagnostics = list(result.get("diagnostics", ()))
+    return {
+        "ok": not diagnostics,
+        "result": result,
+        "diagnostics": diagnostics,
+        "manifest": _agent_manifest(
+            tool=tool,
+            workload=workload or "unknown",
+            config={},
+            method=method,
+            warnings=tuple(result.get("caveats", ())),
+            reference=reference,
         ),
     }
 

@@ -95,7 +95,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add benchmark methodology metadata so specialized fast paths are not confused with general-runtime comparisons.
 - `done` Add internal antithetic-quality benchmarking via stderr-ratio tracking.
 - `done` Add internal control-variate-quality benchmarking via stderr-ratio tracking.
-- `in-progress` Calibrate planner choice quality against measured backend winners, not only hand-authored expected scenarios.
+- `done` Calibrate planner choice quality against measured backend winners, not only hand-authored expected scenarios.
 - `done` Add arithmetic Asian CPU and Apple Metal benchmark coverage.
 - `done` Add down-and-out CPU and Apple Metal benchmark coverage.
 - `done` Add fixed-strike lookback CPU benchmark coverage.
@@ -122,6 +122,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add reproducibility run manifests for pricing, Greek, benchmark, and planner outputs.
 - `done` Add explain-plan and run-manifest helpers as first-class agent-facing surfaces.
 - `done` Add Python-facing agent wrappers that preserve typed, explainable contracts.
+- `done` Add planner-intelligence agent tools for evidence loading, cost frontiers, measured method comparison, why-not-faster explanations, and MLMC/MLQMC calibration.
 
 ## Phase 8: Advanced Simulation Techniques
 
@@ -143,7 +144,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add European-call realized-error QMC benchmarks against the Black-Scholes analytic reference.
 - `in-progress` Optimize structured sampling so Halton, Latin hypercube, and Sobol variants are useful at larger path and step counts.
 - `in-progress` Calibrate MLMC level/path tolerance defaults and broaden beyond the first arithmetic Asian reference path.
-- `in-progress` Add stronger realized-vs-estimated error validation for multilevel Monte Carlo.
+- `done` Add first artifact-backed realized-vs-estimated error validation surface for arithmetic Asian MLMC/MLQMC.
 
 ## Phase 9: Flagship Competitiveness Program
 
@@ -154,7 +155,7 @@ See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 - `done` Phase 3: Become the most user-friendly Monte Carlo library with Python-first APIs, packaging, docs, and release discipline.
 - `done` Phase 4: Become AI-agent native with manifests, schemas, and safe tool wrappers.
 - `in-progress` Phase 5: Match JAX/CuPy/PyTorch accelerator credibility with native CUDA, hardware CI, and competitor environments.
-- `in-progress` Phase 6: Turn planner intelligence into a measured advantage with benchmark-backed winner databases and method comparison surfaces.
+- `done` Phase 6: Turn planner intelligence into a measured advantage with benchmark-backed winner databases and method comparison surfaces.
 - `todo` Phase 7: Broaden product/model/UQ coverage with documented assumptions, references, Greeks, and unsupported states.
 
 ## Ongoing Engineering Quality Track
@@ -172,8 +173,7 @@ See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 
 ## Remaining V1 Completion Count
 
-There are `3` flagship completion phases remaining:
+There are `2` flagship completion phases remaining:
 
 1. Finish Phase 5 accelerator credibility, competitor CI, and native CUDA.
-2. Finish Phase 6 measured planner intelligence.
-3. Finish Phase 7 broader product/model/UQ coverage.
+2. Finish Phase 7 broader product/model/UQ coverage.

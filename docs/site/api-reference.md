@@ -40,6 +40,12 @@ Returns `GreekReport` with:
 ## Planning And Benchmarks
 
 - `recommend_method(...)`
+- `load_planner_evidence(...)`
+- `measured_winner_database(...)`
+- `cost_frontier(workload, ...)`
+- `compare_methods(workload, ...)`
+- `why_not_faster(workload, method_id=..., ...)`
+- `mlmc_error_calibration(workload="arithmetic_asian_call", ...)`
 - `run_benchmarks(...)`
 
 ## Agent Tools
@@ -53,9 +59,16 @@ Returns `GreekReport` with:
 - `agent_compare(request)`
 - `agent_benchmark(request=None)`
 - `agent_reproduce(request)`
+- `agent_planner_evidence(request=None)`
+- `agent_cost_frontier(request)`
+- `agent_compare_methods(request)`
+- `agent_why_not_faster(request)`
+- `agent_mlmc_calibration(request=None)`
 
 Benchmark helpers call the Rust benchmark harness and should be used for
 local audit or release artifact generation, not as a low-latency API.
+Planner evidence helpers read benchmark artifacts and are deterministic for a
+fixed artifact, but their timing claims remain hardware-local.
 
 ## Errors
 

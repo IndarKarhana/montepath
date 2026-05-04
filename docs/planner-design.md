@@ -258,8 +258,7 @@ These are initial rules, not permanent policy.
 
 ### 11.1 Choose CPU when
 
-- path count is small
-- step count is small enough that GPU launch overhead dominates
+- step count is small enough that accelerator setup overhead dominates
 - branching estimate is high
 - unsupported GPU features are required
 - user requests strongest deterministic behavior
@@ -277,9 +276,13 @@ These are initial rules, not permanent policy.
 
 - Apple Silicon GPU is available
 - CUDA is not available or not preferred
-- workload is large and path-parallel
+- workload is path-parallel and within the measured native Metal sweet spot
 - operations are within the supported kernel subset
 - unified memory reduces transfer concerns
+
+The current measured native Metal sweet spot includes smaller step-wise
+workloads than the original conservative heuristic. Release artifacts should
+remain the source of truth for recalibrating these thresholds.
 
 ## 12. Chunking Strategy
 
@@ -474,9 +477,10 @@ Cache goals:
 
 ## 21. Empirical Feedback Loop
 
-This is a later-phase feature, but the planner should be designed to ingest measurements.
+The planner now has a first empirical feedback loop through committed benchmark
+artifacts and Python planner-intelligence surfaces.
 
-Possible future sources:
+Current and future sources:
 
 - actual runtime vs estimated runtime
 - actual peak memory vs estimated peak memory
@@ -484,6 +488,15 @@ Possible future sources:
 - backend-specific performance fingerprints
 
 We should design the planner so heuristics can later be augmented by measured data without changing the public contract.
+
+Current surfaces:
+
+- `load_planner_evidence()`
+- `measured_winner_database()`
+- `cost_frontier(workload)`
+- `compare_methods(workload)`
+- `why_not_faster(workload, method_id=...)`
+- `mlmc_error_calibration(workload)`
 
 ## 22. Planner Pseudocode
 

@@ -14,3 +14,8 @@
   run manifests, and exact request/response examples.
 - Added Phase 5 accelerator competitor foundation with JAX, CuPy, and PyTorch
   benchmark lanes, telemetry, environment manifests, and hardware workflow.
+- Added Phase 6 planner intelligence surfaces for measured winner databases,
+  cost frontiers, method comparison, why-not-faster explanations, and
+  MLMC/MLQMC calibration.
+- Recalibrated Apple Metal planner heuristics against measured local backend
+  winners and refreshed planner-choice accuracy evidence.

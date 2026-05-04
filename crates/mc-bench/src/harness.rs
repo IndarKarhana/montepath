@@ -1328,6 +1328,7 @@ fn measured_winner_for_local_backends(
 
     match measure_metal_stepwise_runtime_ms(n_paths, n_steps, technique, seed) {
         Some(metal_runtime_ms) if metal_runtime_ms < cpu_runtime_ms => BackendId::AppleMetal,
+        Some(_) => BackendId::CpuNative,
         _ => BackendId::CpuNative,
     }
 }
@@ -1486,10 +1487,11 @@ fn measure_metal_stepwise_runtime_ms(
             technique,
             ..EuropeanCallConfig::default()
         };
-        let result = backend
+        let started = Instant::now();
+        let _ = backend
             .execute(&artifact, &BackendExecutionInput::EuropeanCall(cfg))
             .ok()?;
-        Some(result.runtime_ms)
+        Some(started.elapsed().as_secs_f64() * 1_000.0)
     }
 }
 
@@ -1542,10 +1544,11 @@ fn measure_metal_asian_runtime_ms(
             technique,
             ..ArithmeticAsianCallConfig::default()
         };
-        let result = backend
+        let started = Instant::now();
+        let _ = backend
             .execute(&artifact, &BackendExecutionInput::ArithmeticAsianCall(cfg))
             .ok()?;
-        Some(result.runtime_ms)
+        Some(started.elapsed().as_secs_f64() * 1_000.0)
     }
 }
 
@@ -1598,10 +1601,11 @@ fn measure_metal_barrier_runtime_ms(
             technique,
             ..DownAndOutCallConfig::default()
         };
-        let result = backend
+        let started = Instant::now();
+        let _ = backend
             .execute(&artifact, &BackendExecutionInput::DownAndOutCall(cfg))
             .ok()?;
-        Some(result.runtime_ms)
+        Some(started.elapsed().as_secs_f64() * 1_000.0)
     }
 }
 
