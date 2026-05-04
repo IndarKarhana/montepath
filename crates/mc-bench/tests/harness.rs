@@ -269,6 +269,97 @@ fn quantlib_benchmark_environment_is_declared_for_ci() {
 }
 
 #[test]
+fn accelerator_competitor_lanes_report_telemetry_or_explicit_unavailability() {
+    let repo_root = repo_root();
+
+    let output = Command::new("python3")
+        .arg("benchmarks/competitors/python_cpu_baselines.py")
+        .arg("--paths")
+        .arg("16")
+        .arg("--steps")
+        .arg("2")
+        .arg("--repeats")
+        .arg("1")
+        .arg("--seed")
+        .arg("7")
+        .current_dir(repo_root)
+        .output()
+        .expect("python competitor baseline script should run");
+
+    assert!(
+        output.status.success(),
+        "python competitor baseline script failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let payload: Value =
+        serde_json::from_slice(&output.stdout).expect("script should emit JSON payload");
+    let results = payload["results"]
+        .as_array()
+        .expect("payload should contain results array");
+
+    for library in ["jax", "cupy", "torch"] {
+        let row = results
+            .iter()
+            .find(|entry| entry["library"].as_str() == Some(library))
+            .unwrap_or_else(|| panic!("{library} accelerator lane should be reported"));
+
+        assert!(
+            row["available"].is_boolean(),
+            "{library} should report availability explicitly"
+        );
+        assert!(
+            row["methodology"].as_str().is_some(),
+            "{library} should report methodology explicitly"
+        );
+        assert!(
+            row["telemetry"].is_object(),
+            "{library} should report telemetry object even when unavailable"
+        );
+        assert!(
+            row["reproducibility"].as_str().is_some(),
+            "{library} should report reproducibility notes"
+        );
+    }
+}
+
+#[test]
+fn competitor_environment_manifests_cover_all_phase5_libraries() {
+    let root = repo_root();
+    let manifest_dir = root.join("benchmarks/competitors/environments");
+    for name in [
+        "numpy",
+        "numba",
+        "scipy-qmc",
+        "quantlib",
+        "jax",
+        "cupy",
+        "pytorch",
+    ] {
+        let path = manifest_dir.join(format!("{name}.json"));
+        let payload: Value =
+            serde_json::from_slice(&fs::read(&path).unwrap_or_else(|_| panic!("missing {path:?}")))
+                .unwrap_or_else(|_| panic!("{path:?} should contain valid JSON"));
+
+        assert_eq!(
+            payload["schema_version"].as_str(),
+            Some("competitor-env.v1"),
+            "{name} manifest should use the competitor environment schema"
+        );
+        assert!(
+            payload["install"]
+                .as_array()
+                .is_some_and(|items| !items.is_empty()),
+            "{name} manifest should document install commands"
+        );
+        assert!(
+            payload["hardware"].as_str().is_some(),
+            "{name} manifest should document hardware expectations"
+        );
+    }
+}
+
+#[test]
 fn rust_mc_benchmark_is_present() {
     let report = run_compact_benchmarks();
     let rust_mc = report

@@ -1,0 +1,16 @@
+{
+  "schema_version": "competitor-env.v1",
+  "library": "quantlib",
+  "purpose": "QuantLib selected option and analytic reference competitor lanes.",
+  "hardware": "CPU",
+  "install": [
+    "python -m pip install -r benchmarks/competitors/requirements-quantlib.txt"
+  ],
+  "benchmark_script": "benchmarks/competitors/python_cpu_baselines.py",
+  "lanes": [
+    "stepwise_paths_quantlib_mceuropean",
+    "lookback_fixed_strike_stepwise_quantlib_mc",
+    "heston_analytic_reference_quantlib"
+  ],
+  "reproducibility": "QuantLib Monte Carlo lanes use explicit seeds; analytic Heston lane is deterministic."
+}

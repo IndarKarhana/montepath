@@ -79,11 +79,12 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `in-progress` Add baseline comparisons against NumPy / Numba / QuantLib / JAX / CuPy where relevant.
 - `done` Add automated CPU competitor baselines for NumPy and Numba.
 - `done` Add explicit availability reporting for JAX / CuPy / PyTorch in benchmark output.
+- `done` Add executable JAX / CuPy / PyTorch accelerator competitor lanes with explicit telemetry and unavailable diagnostics.
 - `done` Add explicit QuantLib competitor reporting for the overlapping European Monte Carlo workload.
 - `done` Add explicit QuantLib competitor reporting for the fixed-strike lookback Monte Carlo workload.
 - `done` Add explicit QuantLib competitor reporting for the Heston analytic reference lane.
 - `done` Add QuantLib-enabled competitor CI profile with environment manifest and uploaded release-style artifact.
-- `todo` Add dedicated competitor CI profiles for NumPy, Numba, SciPy QMC, QuantLib, JAX, CuPy, and PyTorch with environment manifests.
+- `done` Add dedicated competitor CI profiles for NumPy, Numba, SciPy QMC, QuantLib, JAX, CuPy, and PyTorch with environment manifests.
 - `done` Add Phase 2 reference fixture registry for supported products, models, and Greeks using analytic references where available and explicit caveats elsewhere.
 - `done` Auto-generate competitiveness improvement plan when running benchmarks.
 - `done` Track planner decision quality via planner-choice accuracy benchmark.
@@ -152,7 +153,7 @@ See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 - `done` Phase 2: Beat QuantLib on selected Monte Carlo workloads with a capability catalog, Greek matrix, reference fixture registry, and QuantLib CI environment.
 - `done` Phase 3: Become the most user-friendly Monte Carlo library with Python-first APIs, packaging, docs, and release discipline.
 - `done` Phase 4: Become AI-agent native with manifests, schemas, and safe tool wrappers.
-- `todo` Phase 5: Match JAX/CuPy/PyTorch accelerator credibility with native CUDA, hardware CI, and competitor environments.
+- `in-progress` Phase 5: Match JAX/CuPy/PyTorch accelerator credibility with native CUDA, hardware CI, and competitor environments.
 - `in-progress` Phase 6: Turn planner intelligence into a measured advantage with benchmark-backed winner databases and method comparison surfaces.
 - `todo` Phase 7: Broaden product/model/UQ coverage with documented assumptions, references, Greeks, and unsupported states.
 
@@ -167,7 +168,7 @@ See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 - `done` Validate feature-gated native backend staging in CPU-only CI.
 - `done` Add Python package metadata, wheel/source build workflow, changelog, versioning policy, and release checklist.
 - `done` Add docs-site structure with quickstarts, examples, benchmark interpretation, API reference, and migration notes.
-- `todo` Add native CUDA and Metal hardware CI on dedicated runners.
+- `in-progress` Add native CUDA and Metal hardware CI on dedicated runners.
 
 ## Remaining V1 Completion Count
 

@@ -1,0 +1,16 @@
+{
+  "schema_version": "competitor-env.v1",
+  "library": "scipy_qmc",
+  "purpose": "SciPy quasi-Monte Carlo generation baseline.",
+  "hardware": "CPU",
+  "install": [
+    "python -m pip install scipy>=1.10 numpy>=1.24"
+  ],
+  "benchmark_script": "benchmarks/competitors/python_cpu_baselines.py",
+  "lanes": [
+    "standard_normal_generation_scrambled_sobol",
+    "standard_normal_generation_randomized_halton",
+    "standard_normal_generation_latin_hypercube"
+  ],
+  "reproducibility": "Seeded SciPy QMC engines; statistical reproducibility is expected for same SciPy version."
+}

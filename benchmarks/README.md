@@ -52,6 +52,9 @@ From `latest-results.json`:
 - `mc_metal_arithmetic_asian_call_native_control_variate`: tracks the arithmetic-Asian native Apple GPU control-variate path
 - `mc_metal_down_and_out_call_native` (`down_and_out_stepwise_native_metal`): tracked as the third native Apple GPU workload family
 - `mc_metal_down_and_out_call_native_control_variate`: tracks the native Apple GPU down-and-out control-variate path
+- `mc_gpu_european_call_jax` or `mc_gpu_european_call_jax_unavailable`: tracks the JAX GPU competitor lane when hardware and package support are available
+- `mc_gpu_european_call_cupy` or `mc_gpu_european_call_cupy_unavailable`: tracks the CuPy CUDA competitor lane when hardware and package support are available
+- `mc_gpu_european_call_torch` or `mc_gpu_european_call_torch_unavailable`: tracks the PyTorch CUDA competitor lane when hardware and package support are available
 
 From `release-results.json`:
 
@@ -136,5 +139,17 @@ cargo run -p mc-bench --release -- --output benchmarks/quantlib-ci-results.json
 CI has a dedicated `quantlib-benchmark` job that installs this environment,
 preflights the QuantLib rows, and uploads `benchmarks/quantlib-ci-results.json`
 as an artifact.
+
+Accelerator competitor environment:
+
+```bash
+python -m pip install -r benchmarks/competitors/requirements-accelerators.txt
+python benchmarks/competitors/python_cpu_baselines.py --paths 100000 --steps 64 --repeats 3 --seed 42
+```
+
+Dedicated competitor environment manifests live in
+`benchmarks/competitors/environments/`. The manual
+`accelerator-competitors` workflow should be used for hardware-backed JAX,
+CuPy, and PyTorch results.
 
 Benchmark thresholds are defined in `docs/benchmark-gates.md` and enforced by `crates/mc-bench/tests/gates.rs`.

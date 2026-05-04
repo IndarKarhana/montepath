@@ -1,0 +1,21 @@
+{
+  "schema_version": "competitor-env.v1",
+  "library": "pytorch",
+  "purpose": "PyTorch CUDA accelerator baseline where CUDA hardware is available.",
+  "hardware": "NVIDIA CUDA GPU",
+  "install": [
+    "python -m pip install -r benchmarks/competitors/requirements-accelerators.txt"
+  ],
+  "benchmark_script": "benchmarks/competitors/python_cpu_baselines.py",
+  "lanes": [
+    "terminal_distribution_gpu_torch"
+  ],
+  "reproducibility": "Statistical reproducibility for same seed and PyTorch/CUDA stack; exact replay is not guaranteed across devices or versions.",
+  "telemetry": [
+    "warmup_ms",
+    "compile_ms",
+    "execution_ms",
+    "memory_peak_mb",
+    "device"
+  ]
+}

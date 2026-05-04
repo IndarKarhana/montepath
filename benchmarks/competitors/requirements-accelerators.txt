@@ -1,0 +1,18 @@
+# Optional accelerator competitor benchmark environment.
+#
+# These packages are intentionally not part of the default install. Use them
+# only on hardware runners where GPU benchmark claims can be measured.
+#
+# JAX GPU wheels are platform/CUDA-version specific. The default line below
+# installs CPU-capable JAX; GPU runners should follow the current JAX install
+# selector for their CUDA version before publishing accelerator claims.
+jax>=0.4
+jaxlib>=0.4
+
+# CuPy wheels are CUDA-version specific. CUDA 12 is the default runner target.
+cupy-cuda12x>=13
+
+# PyTorch CUDA wheels are installed from PyTorch's package index in many
+# production environments. This line is sufficient for environments whose pip
+# index is already configured for CUDA wheels.
+torch>=2.2

@@ -30,6 +30,8 @@ class LibraryResult:
     note: str | None
     metric_name: str | None = None
     metric_value: float | None = None
+    telemetry: dict[str, Any] | None = None
+    reproducibility: str | None = None
 
 
 def has_module(name: str) -> bool:
@@ -278,6 +280,234 @@ def benchmark_scipy_qmc_generation(
     )
 
 
+def _accelerator_methodology(library: str) -> str:
+    return f"terminal_distribution_gpu_{library}"
+
+
+def _accelerator_unavailable(library: str, note: str) -> LibraryResult:
+    return unavailable(
+        library,
+        _accelerator_methodology(library),
+        note,
+        telemetry={
+            "warmup_ms": None,
+            "compile_ms": None,
+            "execution_ms": None,
+            "memory_peak_mb": None,
+            "device": None,
+        },
+        reproducibility=(
+            "unavailable in this environment; no accelerator reproducibility "
+            "claim is made"
+        ),
+    )
+
+
+def benchmark_jax_gpu(n_paths: int, repeats: int, seed: int) -> LibraryResult:
+    import jax
+    import jax.numpy as jnp
+    from jax import random as jrandom
+
+    gpu_devices = [device for device in jax.devices() if device.platform == "gpu"]
+    if not gpu_devices:
+        return _accelerator_unavailable("jax", "JAX installed but no GPU device found")
+
+    device = gpu_devices[0]
+    drift_t = (0.03 - 0.5 * 0.2 * 0.2) * 1.0
+    vol_t = 0.2
+    discount = math.exp(-0.03)
+
+    @jax.jit
+    def _price(key: Any) -> Any:
+        z = jrandom.normal(key, (n_paths,), dtype=jnp.float64)
+        s_t = 100.0 * jnp.exp(drift_t + vol_t * z)
+        payoff = jnp.maximum(s_t - 100.0, 0.0) * discount
+        return jnp.mean(payoff), jnp.std(payoff) / jnp.sqrt(float(n_paths))
+
+    warmup_start = time.perf_counter()
+    warm_price, warm_stderr = _price(jax.device_put(jrandom.PRNGKey(seed), device))
+    warm_price.block_until_ready()
+    compile_ms = (time.perf_counter() - warmup_start) * 1000.0
+
+    times: list[float] = []
+    prices: list[float] = []
+    stderrs: list[float] = []
+    for rep in range(repeats):
+        start = time.perf_counter()
+        price, stderr = _price(jax.device_put(jrandom.PRNGKey(seed + rep + 1), device))
+        price.block_until_ready()
+        elapsed = (time.perf_counter() - start) * 1000.0
+        times.append(elapsed)
+        prices.append(float(price))
+        stderrs.append(float(stderr))
+
+    runtime_ms = sum(times) / len(times)
+    return LibraryResult(
+        library="jax",
+        methodology=_accelerator_methodology("jax"),
+        available=True,
+        runtime_ms=runtime_ms,
+        price=sum(prices) / len(prices),
+        stderr=sum(stderrs) / len(stderrs),
+        note="JAX GPU terminal-distribution benchmark; compile/warmup reported separately.",
+        telemetry={
+            "warmup_ms": compile_ms,
+            "compile_ms": compile_ms,
+            "execution_ms": runtime_ms,
+            "memory_peak_mb": n_paths * 8 / (1024 * 1024),
+            "device": str(device),
+        },
+        reproducibility=(
+            "statistical reproducibility for same seed and JAX/device stack; "
+            "exact replay is not guaranteed across devices or versions"
+        ),
+    )
+
+
+def benchmark_cupy_gpu(n_paths: int, repeats: int, seed: int) -> LibraryResult:
+    import cupy as cp
+
+    try:
+        device_count = cp.cuda.runtime.getDeviceCount()
+    except Exception as exc:
+        return _accelerator_unavailable(
+            "cupy", f"CuPy installed but CUDA device probe failed: {type(exc).__name__}: {exc}"
+        )
+    if device_count <= 0:
+        return _accelerator_unavailable("cupy", "CuPy installed but no CUDA device found")
+
+    drift_t = (0.03 - 0.5 * 0.2 * 0.2) * 1.0
+    vol_t = 0.2
+    discount = math.exp(-0.03)
+
+    cp.random.seed(seed)
+    warmup_start = time.perf_counter()
+    z = cp.random.standard_normal(n_paths, dtype=cp.float64)
+    s_t = 100.0 * cp.exp(drift_t + vol_t * z)
+    payoff = cp.maximum(s_t - 100.0, 0.0) * discount
+    _ = float(cp.mean(payoff).get())
+    cp.cuda.Stream.null.synchronize()
+    warmup_ms = (time.perf_counter() - warmup_start) * 1000.0
+
+    try:
+        mempool = cp.get_default_memory_pool()
+        mempool.free_all_blocks()
+    except Exception:
+        mempool = None
+
+    times: list[float] = []
+    prices: list[float] = []
+    stderrs: list[float] = []
+    for rep in range(repeats):
+        cp.random.seed(seed + rep + 1)
+        start = time.perf_counter()
+        z = cp.random.standard_normal(n_paths, dtype=cp.float64)
+        s_t = 100.0 * cp.exp(drift_t + vol_t * z)
+        payoff = cp.maximum(s_t - 100.0, 0.0) * discount
+        price = cp.mean(payoff)
+        stderr = cp.std(payoff) / math.sqrt(n_paths)
+        price_host = float(price.get())
+        stderr_host = float(stderr.get())
+        cp.cuda.Stream.null.synchronize()
+        elapsed = (time.perf_counter() - start) * 1000.0
+        times.append(elapsed)
+        prices.append(price_host)
+        stderrs.append(stderr_host)
+
+    runtime_ms = sum(times) / len(times)
+    memory_peak_mb = None
+    if mempool is not None:
+        try:
+            memory_peak_mb = mempool.total_bytes() / (1024 * 1024)
+        except Exception:
+            memory_peak_mb = None
+    return LibraryResult(
+        library="cupy",
+        methodology=_accelerator_methodology("cupy"),
+        available=True,
+        runtime_ms=runtime_ms,
+        price=sum(prices) / len(prices),
+        stderr=sum(stderrs) / len(stderrs),
+        note="CuPy CUDA terminal-distribution benchmark with explicit synchronization.",
+        telemetry={
+            "warmup_ms": warmup_ms,
+            "compile_ms": 0.0,
+            "execution_ms": runtime_ms,
+            "memory_peak_mb": memory_peak_mb,
+            "device": str(cp.cuda.Device()),
+        },
+        reproducibility=(
+            "statistical reproducibility for same seed and CUDA/CuPy stack; "
+            "exact replay is not guaranteed across devices or versions"
+        ),
+    )
+
+
+def benchmark_torch_gpu(n_paths: int, repeats: int, seed: int) -> LibraryResult:
+    import torch
+
+    if not torch.cuda.is_available():
+        return _accelerator_unavailable(
+            "torch", "PyTorch installed but torch.cuda.is_available() is false"
+        )
+
+    device = torch.device("cuda")
+    drift_t = (0.03 - 0.5 * 0.2 * 0.2) * 1.0
+    vol_t = 0.2
+    discount = math.exp(-0.03)
+
+    torch.manual_seed(seed)
+    warmup_start = time.perf_counter()
+    z = torch.randn(n_paths, device=device, dtype=torch.float64)
+    s_t = 100.0 * torch.exp(drift_t + vol_t * z)
+    payoff = torch.clamp(s_t - 100.0, min=0.0) * discount
+    _ = float(torch.mean(payoff).cpu())
+    torch.cuda.synchronize()
+    warmup_ms = (time.perf_counter() - warmup_start) * 1000.0
+    torch.cuda.reset_peak_memory_stats(device)
+
+    times: list[float] = []
+    prices: list[float] = []
+    stderrs: list[float] = []
+    for rep in range(repeats):
+        torch.manual_seed(seed + rep + 1)
+        start = time.perf_counter()
+        z = torch.randn(n_paths, device=device, dtype=torch.float64)
+        s_t = 100.0 * torch.exp(drift_t + vol_t * z)
+        payoff = torch.clamp(s_t - 100.0, min=0.0) * discount
+        price = torch.mean(payoff)
+        stderr = torch.std(payoff, unbiased=False) / math.sqrt(n_paths)
+        price_host = float(price.cpu())
+        stderr_host = float(stderr.cpu())
+        torch.cuda.synchronize()
+        elapsed = (time.perf_counter() - start) * 1000.0
+        times.append(elapsed)
+        prices.append(price_host)
+        stderrs.append(stderr_host)
+
+    runtime_ms = sum(times) / len(times)
+    return LibraryResult(
+        library="torch",
+        methodology=_accelerator_methodology("torch"),
+        available=True,
+        runtime_ms=runtime_ms,
+        price=sum(prices) / len(prices),
+        stderr=sum(stderrs) / len(stderrs),
+        note="PyTorch CUDA terminal-distribution benchmark with explicit synchronization.",
+        telemetry={
+            "warmup_ms": warmup_ms,
+            "compile_ms": 0.0,
+            "execution_ms": runtime_ms,
+            "memory_peak_mb": torch.cuda.max_memory_allocated(device) / (1024 * 1024),
+            "device": torch.cuda.get_device_name(device),
+        },
+        reproducibility=(
+            "statistical reproducibility for same seed and PyTorch/CUDA stack; "
+            "exact replay is not guaranteed across devices or versions"
+        ),
+    )
+
+
 def benchmark_quantlib_european(
     n_paths: int, n_steps: int, repeats: int, seed: int
 ) -> LibraryResult:
@@ -484,7 +714,14 @@ def benchmark_quantlib_heston_european(
     )
 
 
-def unavailable(name: str, methodology: str | None, note: str) -> LibraryResult:
+def unavailable(
+    name: str,
+    methodology: str | None,
+    note: str,
+    *,
+    telemetry: dict[str, Any] | None = None,
+    reproducibility: str | None = None,
+) -> LibraryResult:
     return LibraryResult(
         library=name,
         methodology=methodology,
@@ -493,6 +730,8 @@ def unavailable(name: str, methodology: str | None, note: str) -> LibraryResult:
         price=None,
         stderr=None,
         note=note,
+        telemetry=telemetry,
+        reproducibility=reproducibility,
     )
 
 
@@ -629,17 +868,24 @@ def main() -> int:
             )
         )
 
-    for gpu_lib in ("jax", "cupy", "torch"):
+    accelerator_benchmarks = {
+        "jax": benchmark_jax_gpu,
+        "cupy": benchmark_cupy_gpu,
+        "torch": benchmark_torch_gpu,
+    }
+    for gpu_lib, benchmark in accelerator_benchmarks.items():
         if has_module(gpu_lib):
-            results.append(
-                unavailable(
-                    gpu_lib,
-                    None,
-                    "detected but GPU-targeted benchmark path not implemented in this CPU script",
+            try:
+                results.append(benchmark(args.paths, args.repeats, args.seed))
+            except Exception as exc:
+                results.append(
+                    _accelerator_unavailable(
+                        gpu_lib,
+                        f"accelerator benchmark failed: {type(exc).__name__}: {exc}",
+                    )
                 )
-            )
         else:
-            results.append(unavailable(gpu_lib, None, "package not installed"))
+            results.append(_accelerator_unavailable(gpu_lib, "package not installed"))
 
     payload: dict[str, Any] = {
         "environment": {
@@ -653,6 +899,11 @@ def main() -> int:
                 "numba": package_version("numba"),
                 "scipy": package_version("scipy"),
                 "QuantLib": package_version("QuantLib"),
+                "jax": package_version("jax"),
+                "cupy": package_version("cupy-cuda12x")
+                or package_version("cupy-cuda11x")
+                or package_version("cupy"),
+                "torch": package_version("torch"),
             },
         },
         "results": [asdict(r) for r in results],

@@ -152,22 +152,35 @@ Evidence:
 
 ## Phase 5: Match JAX/CuPy/PyTorch Accelerator Credibility
 
-Status: `todo`
+Status: `in-progress`
 
 Deliverables:
 
 - `todo` Add native CUDA launch and reduction.
 - `todo` Add GPU RNG with deterministic stream partitioning.
-- `todo` Add GPU QMC generation or explicit unsupported diagnostics.
-- `todo` Add JAX, CuPy, and PyTorch executable competitor baselines where hardware allows.
-- `todo` Add native GPU hardware CI.
-- `todo` Add warmup, compile-time, execution-time, memory, and reproducibility reporting.
-- `todo` Add dedicated competitor CI profiles for NumPy, Numba, SciPy QMC, QuantLib, JAX, CuPy, and PyTorch with explicit environment manifests.
+- `done` Add GPU QMC generation or explicit unsupported diagnostics.
+- `done` Add JAX, CuPy, and PyTorch executable competitor baselines where hardware allows.
+- `in-progress` Add native GPU hardware CI.
+- `done` Add warmup, compile-time, execution-time, memory, and reproducibility reporting.
+- `done` Add dedicated competitor CI profiles for NumPy, Numba, SciPy QMC, QuantLib, JAX, CuPy, and PyTorch with explicit environment manifests.
 
 Definition of done:
 
 - Release benchmark artifacts compare `(ours)` against JAX/CuPy/PyTorch on timing, accuracy, warmup/compile cost, memory, and reproducibility.
 - Accelerator claims are hardware-backed, not inferred from CPU-only machines.
+
+Current evidence:
+
+- Competitor environment manifests: `benchmarks/competitors/environments/`
+- Accelerator requirements: `benchmarks/competitors/requirements-accelerators.txt`
+- Accelerator competitor workflow: `.github/workflows/accelerator-competitors.yml`
+- Accelerator credibility docs: `docs/accelerator-competitor-benchmarking.md`
+
+CUDA-deferred caveat:
+
+- Native CUDA launch, reductions, and deterministic GPU RNG stream partitioning
+  remain intentionally deferred. Phase 5 cannot be marked done until those are
+  implemented and measured on hardware.
 
 ## Phase 6: Planner Intelligence
 

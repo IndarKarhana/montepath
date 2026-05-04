@@ -4183,6 +4183,8 @@ fn benchmark_python_competitors(
                     .unwrap_or_else(|| "stepwise_paths".to_string());
                 let benchmark_name = if methodology.starts_with("standard_normal_generation") {
                     format!("mc_cpu_qmc_{}_generation", entry.library)
+                } else if methodology.starts_with("terminal_distribution_gpu") {
+                    format!("mc_gpu_european_call_{}", entry.library)
                 } else if methodology.starts_with("lookback_fixed_strike") {
                     format!("mc_cpu_lookback_call_{}", entry.library)
                 } else if methodology.starts_with("heston_") {
@@ -4204,7 +4206,11 @@ fn benchmark_python_competitors(
                     benchmark_name,
                     benchmark_version: "0.1".to_string(),
                     implementation: format!("python::{0}", entry.library),
-                    backend: "cpu_external".to_string(),
+                    backend: if methodology.starts_with("terminal_distribution_gpu") {
+                        "gpu_external".to_string()
+                    } else {
+                        "cpu_external".to_string()
+                    },
                     methodology: Some(methodology),
                     planner_mode: "n/a".to_string(),
                     iterations: repeats,
@@ -4228,6 +4234,8 @@ fn benchmark_python_competitors(
                     benchmark_name: if let Some(ref methodology) = methodology {
                         if methodology.starts_with("standard_normal_generation") {
                             format!("mc_cpu_qmc_{}_generation_unavailable", entry.library)
+                        } else if methodology.starts_with("terminal_distribution_gpu") {
+                            format!("mc_gpu_european_call_{}_unavailable", entry.library)
                         } else if methodology.starts_with("lookback_fixed_strike") {
                             format!("mc_cpu_lookback_call_{}_unavailable", entry.library)
                         } else if methodology.starts_with("heston_") {
@@ -4245,7 +4253,14 @@ fn benchmark_python_competitors(
                     },
                     benchmark_version: "0.1".to_string(),
                     implementation: format!("python::{}", entry.library),
-                    backend: "cpu_external".to_string(),
+                    backend: if methodology
+                        .as_deref()
+                        .is_some_and(|value| value.starts_with("terminal_distribution_gpu"))
+                    {
+                        "gpu_external".to_string()
+                    } else {
+                        "cpu_external".to_string()
+                    },
                     methodology,
                     planner_mode: "n/a".to_string(),
                     iterations: 1,

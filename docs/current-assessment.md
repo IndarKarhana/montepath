@@ -39,6 +39,11 @@ Today we have:
   - JSON schema export
   - agent-safe validate, recommend, plan, execute, compare, benchmark, and reproduce wrappers
   - `agent-run.v1` manifests with seed, backend, method, estimator, build, hardware, warnings, and reference metadata
+- Phase 5 accelerator credibility foundation:
+  - JAX, CuPy, and PyTorch competitor lanes are executable when hardware is available
+  - accelerator rows include warmup, compile, execution, memory, device, and reproducibility metadata
+  - dedicated competitor environment manifests cover NumPy, Numba, SciPy QMC, QuantLib, JAX, CuPy, and PyTorch
+  - a manual accelerator competitor workflow exists for self-hosted CUDA runners
 - backend contracts, discovery scaffolding, and explicit fallback execution paths for NVIDIA and Apple
 - host-side native CUDA and Metal staging gates with kernel-manifest metadata and compile-time validation
 - a real native Metal execution path on macOS using in-process Rust host integration and cached pipelines

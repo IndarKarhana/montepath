@@ -1,0 +1,15 @@
+{
+  "schema_version": "competitor-env.v1",
+  "library": "numpy",
+  "purpose": "CPU vectorized Monte Carlo baseline.",
+  "hardware": "CPU",
+  "install": [
+    "python -m pip install numpy>=1.24"
+  ],
+  "benchmark_script": "benchmarks/competitors/python_cpu_baselines.py",
+  "lanes": [
+    "stepwise_paths",
+    "terminal_distribution"
+  ],
+  "reproducibility": "Seeded NumPy Generator; statistical reproducibility is expected for same NumPy version and platform."
+}

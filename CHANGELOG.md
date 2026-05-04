@@ -12,3 +12,5 @@
   QuantLib benchmark CI profile.
 - Added Phase 4 agent-native tool manifest, JSON-schema export, safe wrappers,
   run manifests, and exact request/response examples.
+- Added Phase 5 accelerator competitor foundation with JAX, CuPy, and PyTorch
+  benchmark lanes, telemetry, environment manifests, and hardware workflow.

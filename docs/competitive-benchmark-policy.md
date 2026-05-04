@@ -25,6 +25,12 @@ Benchmark against best-in-class libraries and keep `mc-library` at or above comp
 - `cargo run -p mc-bench --release -- --output benchmarks/release-results.json`
   - generates optimized-profile benchmark report for competitiveness tracking
   - refreshes competitiveness plan based on release-profile data
+- `.github/workflows/accelerator-competitors.yml`
+  - manual hardware workflow for JAX, CuPy, and PyTorch accelerator competitor rows
+  - requires populated telemetry before uploading accelerator competitor artifacts
+
+Competitor environment manifests are stored under
+`benchmarks/competitors/environments/`.
 
 ## Definition of Competitive Success
 

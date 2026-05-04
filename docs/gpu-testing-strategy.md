@@ -154,6 +154,10 @@ What we can still do:
 - benchmark CPU baselines
 - benchmark fallback path overhead through the backend abstraction
 - keep planner and backend contracts stable until hardware is available
+- report JAX, CuPy, and PyTorch competitor rows as explicit unavailable rows
+  when packages or GPU devices are missing
+- run `.github/workflows/accelerator-competitors.yml` on a self-hosted CUDA
+  runner to populate hardware-backed competitor artifacts
 
 ## Practical Plan For This Repo
 
