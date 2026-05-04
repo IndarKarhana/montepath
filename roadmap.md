@@ -82,6 +82,8 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add explicit QuantLib competitor reporting for the overlapping European Monte Carlo workload.
 - `done` Add explicit QuantLib competitor reporting for the fixed-strike lookback Monte Carlo workload.
 - `done` Add explicit QuantLib competitor reporting for the Heston analytic reference lane.
+- `todo` Add dedicated competitor CI profiles for NumPy, Numba, SciPy QMC, QuantLib, JAX, CuPy, and PyTorch with environment manifests.
+- `todo` Add reference fixture suite for supported products, models, and Greeks using analytic, semi-analytic, or high-precision references.
 - `done` Auto-generate competitiveness improvement plan when running benchmarks.
 - `done` Track planner decision quality via planner-choice accuracy benchmark.
 - `done` Define performance gates and regression thresholds.
@@ -115,6 +117,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add first Python-facing wrapper scaffold for method recommendations and benchmark audits.
 - `done` Extend method recommendations with machine-readable `method_id` and first MLMC recommendation path.
 - `todo` Add machine-readable tool manifest and schema export for stable agent integration.
+- `todo` Add reproducibility run manifests for pricing, Greek, benchmark, and planner outputs.
 - `in-progress` Add explain-plan and run-manifest helpers as first-class agent-facing surfaces.
 - `in-progress` Add Python-facing agent wrappers that preserve typed, explainable contracts.
 
@@ -146,10 +149,11 @@ See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 
 - `done` Phase 1: Beat SciPy QMC on structured sampling for targeted workloads.
 - `in-progress` Phase 2: Beat QuantLib on selected Monte Carlo workloads.
-- `todo` Phase 3: Become the most user-friendly Monte Carlo library.
-- `in-progress` Phase 4: Become AI-agent native.
-- `todo` Phase 5: Match JAX/CuPy/PyTorch accelerator credibility.
-- `in-progress` Phase 6: Turn planner intelligence into a measured advantage.
+- `todo` Phase 3: Become the most user-friendly Monte Carlo library with Python-first APIs, packaging, docs, and release discipline.
+- `in-progress` Phase 4: Become AI-agent native with manifests, schemas, and safe tool wrappers.
+- `todo` Phase 5: Match JAX/CuPy/PyTorch accelerator credibility with native CUDA, hardware CI, and competitor environments.
+- `in-progress` Phase 6: Turn planner intelligence into a measured advantage with benchmark-backed winner databases and method comparison surfaces.
+- `todo` Phase 7: Broaden product/model/UQ coverage with documented assumptions, references, Greeks, and unsupported states.
 
 ## Ongoing Engineering Quality Track
 
@@ -160,4 +164,17 @@ See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 - `done` Add an honest market-landscape document against leading Monte Carlo library categories.
 - `done` Add baseline CPU CI for format, test, and benchmark smoke checks.
 - `done` Validate feature-gated native backend staging in CPU-only CI.
+- `todo` Add PyPI packaging, wheel builds, crate release workflow, changelog, versioning policy, and release checklist.
+- `todo` Add docs-site structure with quickstarts, examples, benchmark interpretation, API reference, and migration notes.
 - `todo` Add native CUDA and Metal hardware CI on dedicated runners.
+
+## Remaining V1 Completion Count
+
+There are `6` flagship completion phases remaining:
+
+1. Finish Phase 2 selected QuantLib competitiveness, product/model catalog, and reference fixtures.
+2. Finish Phase 3 Python-first UX, packaging, docs, and release discipline.
+3. Finish Phase 4 AI-agent manifests, schemas, and safe tool wrappers.
+4. Finish Phase 5 accelerator credibility, competitor CI, and native CUDA.
+5. Finish Phase 6 measured planner intelligence.
+6. Finish Phase 7 broader product/model/UQ coverage.

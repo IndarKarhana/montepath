@@ -75,12 +75,15 @@ Deliverables:
 - `done` Add Heston path simulation with reference validation.
 - `done` Add Greeks: bump-and-revalue first, then pathwise and likelihood-ratio estimators.
 - `todo` Add product/model capability catalog with assumptions and unsupported states.
+- `todo` Add Greek estimator capability matrix by product/model, including bump, pathwise, likelihood-ratio, and unsupported states.
 - `todo` Add accuracy fixtures against analytic or semi-analytic references where available.
+- `todo` Add QuantLib-enabled benchmark environment so QuantLib lanes are populated in CI/release artifacts instead of only reporting unavailable locally.
 
 Definition of done:
 
 - For selected MC workloads, our runtime is faster, easier to inspect, and more reproducible than QuantLib.
 - Docs remain honest that QuantLib is broader on calendars, curves, market conventions, and instruments.
+- Every selected product/model/Greek has a documented reference source or an explicit "no trusted fixture yet" caveat.
 
 Next action:
 
@@ -98,11 +101,14 @@ Deliverables:
 - `todo` Add install profiles and troubleshooting docs for `cpu`, `metal`, and future `cuda`.
 - `todo` Add error-code documentation and examples.
 - `todo` Add notebooks for quants, researchers, and engineers.
+- `todo` Add PyPI packaging, wheel build automation, versioning policy, changelog, and release checklist.
+- `todo` Add docs-site structure with quickstarts, API reference, benchmark interpretation, and migration notes.
 
 Definition of done:
 
 - A new user can run, explain, and reproduce a path-dependent simulation in under five minutes.
 - User-facing errors include actionable fixes.
+- A user can install the package without checking out the repo, run common pricing/Greek workflows, and understand benchmark claims without reading source code.
 
 ## Phase 4: Become AI-Agent Native
 
@@ -115,10 +121,13 @@ Deliverables:
 - `todo` Add run manifest structs for executed simulations.
 - `todo` Add agent-safe wrappers for validate, recommend, plan, execute, compare, benchmark, and reproduce.
 - `todo` Add deterministic dry-run planning surface for cost and method comparison.
+- `todo` Add reproducibility manifests to pricing, Greek, benchmark, and planner outputs, including seed, backend, method, estimator, build, hardware, warnings, and reference metadata.
+- `todo` Add stable agent-facing examples that show exact request/response payloads.
 
 Definition of done:
 
 - An AI agent can validate a simulation, choose a method/backend, run it, compare alternatives, and cite exact reproducibility metadata without reading source code.
+- Agent tools can be called safely without hidden global state or ambiguous free-form outputs.
 
 ## Phase 5: Match JAX/CuPy/PyTorch Accelerator Credibility
 
@@ -132,10 +141,12 @@ Deliverables:
 - `todo` Add JAX, CuPy, and PyTorch executable competitor baselines where hardware allows.
 - `todo` Add native GPU hardware CI.
 - `todo` Add warmup, compile-time, execution-time, memory, and reproducibility reporting.
+- `todo` Add dedicated competitor CI profiles for NumPy, Numba, SciPy QMC, QuantLib, JAX, CuPy, and PyTorch with explicit environment manifests.
 
 Definition of done:
 
 - Release benchmark artifacts compare `(ours)` against JAX/CuPy/PyTorch on timing, accuracy, warmup/compile cost, memory, and reproducibility.
+- Accelerator claims are hardware-backed, not inferred from CPU-only machines.
 
 ## Phase 6: Planner Intelligence
 
@@ -148,10 +159,42 @@ Deliverables:
 - `todo` Add cost frontier reporting for method/backend choices.
 - `todo` Add `compare_methods` and `why_not_faster` surfaces.
 - `todo` Raise measured planner-choice accuracy above 95% on the tracked scenario suite.
+- `todo` Add planner evidence records that connect recommendations to benchmark artifact IDs, workload assumptions, and reference fixtures.
+- `todo` Add user/agent-facing planner explanations for rejected methods, unsupported estimators, and accuracy/runtime tradeoffs.
 
 Definition of done:
 
 - Planner choices are evidence-backed, explainable, overrideable, and accurate across the tracked workload families.
+
+## Phase 7: Broaden Product And Model Coverage
+
+Status: `todo`
+
+Primary competitors: QuantLib for finance breadth, SciPy/JAX-style stacks for general simulation breadth.
+
+Deliverables:
+
+- `todo` Add American or Bermudan exercise support with explicit method assumptions and benchmark/reference fixtures.
+- `todo` Add additional diffusion/model families such as jump diffusion, stochastic rates, or generic SDE templates after references are defined.
+- `todo` Add batch/portfolio parameter sweeps with reproducible manifests and benchmark coverage.
+- `todo` Add a broader scientific UQ surface beyond the first Gaussian analytic-mean workload.
+- `todo` Add product families only when unsupported behavior, references, Greeks, and benchmark methodology can be documented honestly.
+
+Definition of done:
+
+- The library is no longer only a set of selected pricing workloads; it has a documented path toward broader quantitative-finance and scientific Monte Carlo coverage.
+- Breadth claims are backed by product/model catalog entries, tests, and benchmark rows.
+
+## Remaining Completion Phases
+
+These are the remaining durable phases before a serious v1:
+
+1. Phase 2: selected QuantLib competitiveness, capability catalog, and reference fixtures.
+2. Phase 3: Python-first UX, packaging, docs, and release discipline.
+3. Phase 4: AI-agent-native manifests, schemas, and tool wrappers.
+4. Phase 5: accelerator credibility, competitor CI, and native CUDA.
+5. Phase 6: measured planner intelligence and method comparison surfaces.
+6. Phase 7: broader product/model/UQ coverage.
 
 ## Always-Next Rule
 
