@@ -19,3 +19,5 @@
   MLMC/MLQMC calibration.
 - Recalibrated Apple Metal planner heuristics against measured local backend
   winners and refreshed planner-choice accuracy evidence.
+- Fixed the QuantLib CI preflight so missing per-instrument QuantLib-Python APIs
+  remain explicit unavailable benchmark rows instead of failing the whole CI job.

@@ -137,8 +137,9 @@ cargo run -p mc-bench --release -- --output benchmarks/quantlib-ci-results.json
 ```
 
 CI has a dedicated `quantlib-benchmark` job that installs this environment,
-preflights the QuantLib rows, and uploads `benchmarks/quantlib-ci-results.json`
-as an artifact.
+preflights the QuantLib package and the core European competitor row, preserves
+per-instrument QuantLib API gaps as explicit unavailable rows, and uploads
+`benchmarks/quantlib-ci-results.json` as an artifact.
 
 Accelerator competitor environment:
 

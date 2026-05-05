@@ -266,6 +266,14 @@ fn quantlib_benchmark_environment_is_declared_for_ci() {
         ci.contains("benchmarks/quantlib-ci-results.json"),
         "CI should produce a QuantLib-populated benchmark artifact path"
     );
+    assert!(
+        ci.contains("QuantLib environment did not produce any available competitor rows"),
+        "CI should gate the QuantLib environment without failing on explicit per-lane unavailable rows"
+    );
+    assert!(
+        !ci.contains("QuantLib rows unavailable"),
+        "CI should not fail merely because one QuantLib instrument API is unavailable"
+    );
 }
 
 #[test]

@@ -66,7 +66,8 @@ styles, and instrument families. Our Phase 2 claim is narrower:
 
 - on selected Monte Carlo workloads, keep our runtime faster and more
   reproducible when benchmark rows are populated;
-- keep missing QuantLib packages explicit as unavailable benchmark rows;
+- keep missing QuantLib packages or missing instrument APIs explicit as
+  unavailable benchmark rows;
 - run a QuantLib-enabled CI benchmark profile so release artifacts can include
-  populated QuantLib lanes.
-
+  populated QuantLib lanes where the installed QuantLib-Python build exposes
+  the required APIs.

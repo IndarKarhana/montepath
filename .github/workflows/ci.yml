@@ -78,9 +78,18 @@ jobs:
           ]
           if not quantlib_rows:
               raise SystemExit("QuantLib rows missing from preflight payload")
+          available = [row for row in quantlib_rows if row["available"]]
+          if not available:
+              raise SystemExit("QuantLib environment did not produce any available competitor rows")
+          european = [
+              row for row in available
+              if row["methodology"] == "stepwise_paths_quantlib_mceuropean"
+          ]
+          if not european:
+              raise SystemExit("QuantLib European competitor row unavailable")
           unavailable = [row for row in quantlib_rows if not row["available"]]
           if unavailable:
-              raise SystemExit(f"QuantLib rows unavailable: {unavailable}")
+              print(f"QuantLib unavailable rows retained explicitly: {unavailable}")
           PY
 
       - name: Generate QuantLib-populated benchmark artifact
