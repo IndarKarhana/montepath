@@ -17,6 +17,7 @@ execution semantics are explicit and reproducible.
 | Arithmetic Asian call | GBM | supported | supported for current GBM path family | staged, not native execution | no trusted fixture yet | none |
 | Down-and-out call | GBM | supported | supported for current GBM path family | staged, not native execution | no trusted fixture yet | none |
 | Fixed-strike lookback call | GBM | supported | not yet native | staged, not native execution | QuantLib competitor lane only | `mc_cpu_lookback_call_quantlib` |
+| American put | GBM / Black-Scholes | supported CPU reference: Longstaff-Schwartz | not yet native | staged, not native execution | European put lower-bound reference; external LSM comparisons pending | none |
 | Two-asset basket call | correlated GBM | supported | not yet native | staged, not native execution | no trusted fixture yet | none |
 | Heston European call | full-truncation Euler Heston | supported | not yet native | staged, not native execution | Black-Scholes limit fixture | `mc_cpu_heston_european_call_quantlib` |
 | Gaussian UQ mean | independent standard normals | supported | not yet native | staged, not native execution | analytic mean | none |
@@ -29,6 +30,7 @@ execution semantics are explicit and reproducible.
 | Arithmetic Asian call GBM | supported: Delta, Vega, Rho, Theta | unsupported | unsupported | no trusted fixture yet |
 | Down-and-out call GBM | supported: Delta, Vega, Rho, Theta | unsupported | unsupported | no trusted fixture yet |
 | Fixed-strike lookback call GBM | supported: Delta, Vega, Rho, Theta | unsupported | unsupported | QuantLib lane only |
+| American put GBM | unsupported | unsupported | unsupported | LSM pricing only; Greeks not exposed yet |
 | Two-asset basket call GBM | supported: Delta, Vega, Rho | unsupported | unsupported | no trusted fixture yet |
 | Heston European call | supported: Delta | unsupported | unsupported | Black-Scholes limit fixture |
 | Gaussian UQ mean | not applicable | not applicable | not applicable | analytic mean |
@@ -55,6 +57,9 @@ Explicit caveats:
   committed analytic or high-precision fixtures for their current semantics.
 - Lookback has a QuantLib Monte Carlo competitor lane, but no committed analytic
   fixture for the current discrete-monitoring setup.
+- American put has CPU Longstaff-Schwartz execution, a European put lower-bound
+  check, and estimator metadata, but no committed high-precision American
+  reference grid yet.
 - General Heston analytic comparison is delegated to the QuantLib lane when
   QuantLib-Python is installed; the trusted built-in fixture is the
   Black-Scholes limit.

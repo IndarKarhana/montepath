@@ -152,7 +152,7 @@ Evidence:
 
 ## Phase 5: Match JAX/CuPy/PyTorch Accelerator Credibility
 
-Status: `done`
+Status: `in-progress`
 
 Deliverables:
 
@@ -184,7 +184,7 @@ CUDA-deferred caveat:
 
 ## Phase 6: Planner Intelligence
 
-Status: `in-progress`
+Status: `done`
 
 Deliverables:
 
@@ -210,13 +210,14 @@ Evidence:
 
 ## Phase 7: Broaden Product And Model Coverage
 
-Status: `todo`
+Status: `in-progress`
 
 Primary competitors: QuantLib for finance breadth, SciPy/JAX-style stacks for general simulation breadth.
 
 Deliverables:
 
-- `todo` Add American or Bermudan exercise support with explicit method assumptions and benchmark/reference fixtures.
+- `done` Add an American put Longstaff-Schwartz CPU reference surface with explicit method assumptions, benchmark row, and lower-bound reference fixture.
+- `todo` Add Bermudan custom exercise schedules with reference fixtures and benchmark coverage.
 - `todo` Add additional diffusion/model families such as jump diffusion, stochastic rates, or generic SDE templates after references are defined.
 - `todo` Add batch/portfolio parameter sweeps with reproducible manifests and benchmark coverage.
 - `todo` Add a broader scientific UQ surface beyond the first Gaussian analytic-mean workload.

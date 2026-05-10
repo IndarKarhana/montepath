@@ -1,7 +1,8 @@
 use mc_core::{
-    arithmetic_asian_call_price_mc_cpu, arithmetic_asian_call_price_mlmc_cpu,
-    basket_call_price_mc_cpu, black_scholes_european_call_greeks,
-    black_scholes_european_call_price, compare_arithmetic_asian_sampling_quality_cpu,
+    american_put_price_lsm_cpu, arithmetic_asian_call_price_mc_cpu,
+    arithmetic_asian_call_price_mlmc_cpu, basket_call_price_mc_cpu,
+    black_scholes_european_call_greeks, black_scholes_european_call_price,
+    black_scholes_european_put_price, compare_arithmetic_asian_sampling_quality_cpu,
     compare_basket_call_sampling_quality_cpu, compare_down_and_out_sampling_quality_cpu,
     compare_european_call_realized_error_cpu, compare_european_call_sampling_quality_cpu,
     compare_heston_black_scholes_limit_cpu, diagnose_standard_normals_cpu,
@@ -10,13 +11,14 @@ use mc_core::{
     gaussian_uncertainty_mean_cpu, generate_standard_normals_cpu, heston_european_call_greeks_cpu,
     heston_european_call_price_mc_cpu, lookback_call_price_mc_cpu, monte_carlo_method_capabilities,
     price_all_current_greeks_bump_and_revalue_cpu, solve_arithmetic_asian_mlmc_tolerance_cpu,
-    structured_sampling_guidance_cpu, tune_arithmetic_asian_mlmc_allocation_cpu,
-    ArithmeticAsianCallConfig, ArithmeticAsianCallPricer, ArithmeticAsianMlmcConfig,
-    ArithmeticAsianMlmcPricer, ArithmeticAsianMlmcToleranceConfig, BackendMethodSupport,
-    BasketCallConfig, BasketCallPricer, DownAndOutCallConfig, DownAndOutCallPricer,
-    EuropeanCallConfig, EuropeanCallMethod, EuropeanCallPricer, GaussianUncertaintyConfig, Greek,
-    GreekEstimator, HestonEuropeanCallConfig, HestonEuropeanCallPricer, LookbackCallConfig,
-    LookbackCallPricer, MonteCarloRng, MonteCarloTechnique, PricingWorkloadFamily, SamplingMethod,
+    structured_sampling_guidance_cpu, tune_arithmetic_asian_mlmc_allocation_cpu, AmericanPutConfig,
+    AmericanPutPricer, ArithmeticAsianCallConfig, ArithmeticAsianCallPricer,
+    ArithmeticAsianMlmcConfig, ArithmeticAsianMlmcPricer, ArithmeticAsianMlmcToleranceConfig,
+    BackendMethodSupport, BasketCallConfig, BasketCallPricer, DownAndOutCallConfig,
+    DownAndOutCallPricer, EuropeanCallConfig, EuropeanCallMethod, EuropeanCallPricer,
+    GaussianUncertaintyConfig, Greek, GreekEstimator, HestonEuropeanCallConfig,
+    HestonEuropeanCallPricer, LookbackCallConfig, LookbackCallPricer, MonteCarloRng,
+    MonteCarloTechnique, PricingWorkloadFamily, SamplingMethod,
 };
 
 #[test]
@@ -1163,6 +1165,66 @@ fn lookback_pricer_builder_supports_expressive_configuration() {
 }
 
 #[test]
+fn american_put_lsm_is_deterministic_for_same_seed() {
+    let cfg = AmericanPutConfig {
+        n_paths: 30_000,
+        n_steps: 48,
+        seed: 14_001,
+        ..AmericanPutConfig::default()
+    };
+
+    let r1 = american_put_price_lsm_cpu(&cfg);
+    let r2 = american_put_price_lsm_cpu(&cfg);
+
+    assert_eq!(r1, r2);
+    assert_eq!(r1.workload, PricingWorkloadFamily::AmericanPut);
+    assert_eq!(r1.regression_basis, "laguerre_lsm_degree_2");
+}
+
+#[test]
+fn american_put_lsm_has_early_exercise_premium_over_european_put() {
+    let cfg = AmericanPutConfig {
+        n_paths: 80_000,
+        n_steps: 64,
+        seed: 14_002,
+        ..AmericanPutConfig::default()
+    };
+
+    let american = american_put_price_lsm_cpu(&cfg);
+    let european = black_scholes_european_put_price(cfg.s0, cfg.k, cfg.r, cfg.sigma, cfg.t);
+
+    assert!(american.price.is_finite());
+    assert!(american.stderr >= 0.0);
+    assert!(american.price + 3.0 * american.stderr >= european);
+    assert!(american.price <= cfg.k);
+    assert!(american.early_exercise_count > 0);
+    assert_eq!(american.regression_steps, cfg.n_steps - 1);
+    assert!(american
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("Longstaff-Schwartz")));
+}
+
+#[test]
+fn american_put_pricer_builder_supports_expressive_configuration() {
+    let result = AmericanPutPricer::new()
+        .s0(100.0)
+        .strike(100.0)
+        .rate(0.03)
+        .volatility(0.2)
+        .maturity(1.0)
+        .paths(20_000)
+        .steps(32)
+        .seed(14_003)
+        .basis_degree(2)
+        .price();
+
+    assert!(result.price > 0.0);
+    assert!(result.stderr >= 0.0);
+    assert_eq!(result.regression_basis, "laguerre_lsm_degree_2");
+}
+
+#[test]
 fn heston_european_call_is_deterministic_for_same_seed() {
     let cfg = HestonEuropeanCallConfig {
         n_paths: 50_000,
@@ -1404,6 +1466,13 @@ fn method_capability_catalog_exposes_supported_and_planned_methods() {
         .find(|capability| capability.method_id == "multilevel_randomized_qmc")
         .expect("MLQMC should be listed");
     assert_eq!(mlqmc.cpu_native, BackendMethodSupport::CpuReference);
+
+    let lsm = capabilities
+        .iter()
+        .find(|capability| capability.method_id == "longstaff_schwartz_lsm")
+        .expect("Longstaff-Schwartz should be listed");
+    assert_eq!(lsm.cpu_native, BackendMethodSupport::CpuReference);
+    assert!(lsm.notes.iter().any(|note| note.contains("American puts")));
 
     let greeks = capabilities
         .iter()

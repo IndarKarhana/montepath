@@ -100,6 +100,16 @@ fn benchmark_gates_hold_for_current_internal_suite() {
         "mc_cpu_lookback_call_rust gate failed: expected benchmark presence and positive runtime"
     );
 
+    let american_put = find_metric("mc_cpu_american_put_lsm_rust", &report);
+    assert!(
+        american_put.total_runtime_ms > 0.0,
+        "mc_cpu_american_put_lsm_rust gate failed: expected benchmark presence and positive runtime"
+    );
+    assert_eq!(
+        american_put.methodology.as_deref(),
+        Some("american_put_longstaff_schwartz_laguerre")
+    );
+
     let heston = find_metric("mc_cpu_heston_european_call_rust", &report);
     assert!(
         heston.total_runtime_ms > 0.0,

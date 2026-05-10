@@ -42,6 +42,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add control-variate support for narrow workloads with strong analytic references.
 - `done` Add arithmetic Asian and down-and-out call CPU workload families with deterministic reference execution.
 - `done` Add fixed-strike lookback call CPU workload with deterministic reference execution.
+- `done` Add American put Longstaff-Schwartz CPU reference execution with explicit estimator metadata.
 - `done` Add Heston stochastic-volatility European-call CPU workload with Black-Scholes-limit validation.
 - `done` Add structured CPU Greek reports with bump-and-revalue breadth plus European pathwise and likelihood-ratio estimators.
 - `done` Add first explicit sampling-method abstraction with pseudorandom, randomized Halton, and Latin hypercube CPU execution paths.
@@ -99,6 +100,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add arithmetic Asian CPU and Apple Metal benchmark coverage.
 - `done` Add down-and-out CPU and Apple Metal benchmark coverage.
 - `done` Add fixed-strike lookback CPU benchmark coverage.
+- `done` Add American put Longstaff-Schwartz CPU benchmark coverage and reference/comparison policy.
 - `done` Add Heston CPU benchmark and Black-Scholes-limit quality coverage.
 - `done` Add Greek benchmark coverage with Black-Scholes Delta accuracy gates and all-workload bump-and-revalue breadth tracking.
 - `done` Add first randomized-Halton benchmark and estimator-quality coverage.
@@ -156,7 +158,7 @@ See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 - `done` Phase 4: Become AI-agent native with manifests, schemas, and safe tool wrappers.
 - `in-progress` Phase 5: Match JAX/CuPy/PyTorch accelerator credibility with native CUDA, hardware CI, and competitor environments.
 - `done` Phase 6: Turn planner intelligence into a measured advantage with benchmark-backed winner databases and method comparison surfaces.
-- `todo` Phase 7: Broaden product/model/UQ coverage with documented assumptions, references, Greeks, and unsupported states.
+- `in-progress` Phase 7: Broaden product/model/UQ coverage with documented assumptions, references, Greeks, and unsupported states.
 
 ## Ongoing Engineering Quality Track
 

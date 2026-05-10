@@ -21,3 +21,5 @@
   winners and refreshed planner-choice accuracy evidence.
 - Fixed the QuantLib CI preflight so missing per-instrument QuantLib-Python APIs
   remain explicit unavailable benchmark rows instead of failing the whole CI job.
+- Started Phase 7.1 with a CPU Longstaff-Schwartz American-put pricing surface,
+  benchmark row, lower-bound reference fixture, and capability documentation.

@@ -340,6 +340,62 @@
       ]
     },
     {
+      "workload_id": "american_put_gbm_lsm",
+      "display_name": "American put under Black-Scholes/GBM",
+      "product_family": "early_exercise_option",
+      "model_family": "geometric_brownian_motion",
+      "payoff": "max(K - S_t, 0) with discrete early-exercise decisions estimated by Longstaff-Schwartz regression",
+      "runtime_surfaces": [
+        "american_put_price_lsm_cpu"
+      ],
+      "backend_support": {
+        "cpu_native": "supported_cpu_reference",
+        "apple_metal": "not_yet_native",
+        "nvidia_cuda": "staged_not_native_execution"
+      },
+      "sampling_support": [
+        "pseudorandom"
+      ],
+      "variance_reduction_support": [
+        "longstaff_schwartz_laguerre_basis"
+      ],
+      "greek_estimators": {
+        "bump_and_revalue": {
+          "status": "unsupported",
+          "reason": "Phase 7.1 exposes pricing only until early-exercise estimator noise is characterized"
+        },
+        "pathwise": {
+          "status": "unsupported",
+          "reason": "early-exercise boundary needs separate estimator design"
+        },
+        "likelihood_ratio": {
+          "status": "unsupported",
+          "reason": "early-exercise boundary needs separate estimator design"
+        }
+      },
+      "reference_status": "lower_bound_reference_only",
+      "reference_fixture_ids": [
+        "black_scholes_european_put_atm_1y_lower_bound"
+      ],
+      "reference_caveat": "European put price is a lower-bound sanity check, not a full American option reference.",
+      "quantlib_lanes": [],
+      "assumptions": [
+        "flat risk-free rate",
+        "zero dividend yield",
+        "constant volatility",
+        "discrete exercise dates at simulation steps",
+        "Laguerre polynomial continuation-value regression"
+      ],
+      "unsupported_states": [
+        "dividend yield",
+        "Bermudan custom exercise schedules",
+        "calls with early exercise",
+        "native GPU execution",
+        "Greeks",
+        "high-precision American reference fixture"
+      ]
+    },
+    {
       "workload_id": "heston_european_call",
       "display_name": "European call under Heston stochastic volatility",
       "product_family": "vanilla_option",

@@ -218,6 +218,27 @@ Practical notes:
 - current quality comparison uses empirical stderr ratios, not a closed-form continuous-monitoring lookback reference
 - native Metal execution is not implemented for lookback yet; CPU is the correctness reference
 
+### 0.85. Longstaff-Schwartz Early-Exercise Pricing
+
+Status:
+
+- Phase 7.1 has CPU-reference American put pricing through `american_put_price_lsm_cpu`
+- benchmarked as `mc_cpu_american_put_lsm_rust`
+- listed in `monte_carlo_method_capabilities()` as `longstaff_schwartz_lsm`
+
+Why it matters:
+
+- early-exercise pricing is one of the major breadth gaps versus flagship quant libraries
+- Longstaff-Schwartz gives us a standard Monte Carlo route for American/Bermudan-style products
+- the result carries exercise counts, regression basis metadata, warnings, and deterministic seed behavior so agents can inspect what was estimated
+
+Practical notes:
+
+- current support is an American put under GBM with discrete exercise decisions at simulation steps
+- continuation values use Laguerre basis regression with degree 1-3
+- the committed reference is a European put lower bound, not a high-precision American option fixture
+- no dividend yield, custom Bermudan schedules, Greeks, or native GPU execution are exposed yet
+
 ### 0.9. Heston Stochastic-Volatility Pricing
 
 Status:

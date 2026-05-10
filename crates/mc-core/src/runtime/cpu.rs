@@ -87,6 +87,7 @@ pub enum PricingWorkloadFamily {
     DownAndOutCall,
     BasketCall,
     LookbackCall,
+    AmericanPut,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -657,6 +658,11 @@ pub fn black_scholes_european_call_price(s0: f64, k: f64, r: f64, sigma: f64, t:
     s0 * standard_normal_cdf(d1) - k * (-r * t).exp() * standard_normal_cdf(d2)
 }
 
+pub fn black_scholes_european_put_price(s0: f64, k: f64, r: f64, sigma: f64, t: f64) -> f64 {
+    let call = black_scholes_european_call_price(s0, k, r, sigma, t);
+    call + k * (-r * t).exp() - s0
+}
+
 pub fn black_scholes_european_call_greeks(
     s0: f64,
     k: f64,
@@ -875,6 +881,7 @@ pub enum MonteCarloMethodCategory {
     StructuredSampling,
     Multilevel,
     Sensitivity,
+    EarlyExercise,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -980,6 +987,18 @@ pub fn monte_carlo_method_capabilities() -> Vec<MonteCarloMethodCapability> {
             BackendMethodSupport::Planned,
             BackendMethodSupport::Planned,
             &["CPU reference support currently covers arithmetic Asian MLMC with scrambled Sobol increments"],
+        ),
+        method_capability(
+            "longstaff_schwartz_lsm",
+            "Longstaff-Schwartz least-squares Monte Carlo",
+            MonteCarloMethodCategory::EarlyExercise,
+            BackendMethodSupport::CpuReference,
+            BackendMethodSupport::Planned,
+            BackendMethodSupport::Planned,
+            &[
+                "CPU reference support currently covers American puts under GBM with Laguerre continuation-value regression",
+                "European put lower-bound validation is committed; high-precision American fixtures and Bermudan schedules are pending",
+            ],
         ),
         method_capability(
             "bump_and_revalue_greeks",
@@ -1358,6 +1377,52 @@ impl Default for BasketCallConfig {
             sampling: SamplingMethod::Pseudorandom,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct AmericanPutConfig {
+    pub s0: f64,
+    pub k: f64,
+    pub r: f64,
+    pub sigma: f64,
+    pub t: f64,
+    pub n_paths: usize,
+    pub n_steps: usize,
+    pub seed: u64,
+    pub n_threads: usize,
+    pub basis_degree: usize,
+}
+
+impl Default for AmericanPutConfig {
+    fn default() -> Self {
+        Self {
+            s0: 100.0,
+            k: 100.0,
+            r: 0.03,
+            sigma: 0.2,
+            t: 1.0,
+            n_paths: 100_000,
+            n_steps: 64,
+            seed: 42,
+            n_threads: 0,
+            basis_degree: 2,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AmericanPutResult {
+    pub workload: PricingWorkloadFamily,
+    pub price: f64,
+    pub stderr: f64,
+    pub paths: usize,
+    pub steps: usize,
+    pub seed: u64,
+    pub early_exercise_count: usize,
+    pub maturity_exercise_count: usize,
+    pub regression_steps: usize,
+    pub regression_basis: String,
+    pub warnings: Vec<String>,
 }
 
 pub type DownAndOutCallResult = EuropeanCallResult;
@@ -2016,6 +2081,87 @@ impl BasketCallPricer {
 
     pub fn greeks(&self, estimator: GreekEstimator) -> GreekReport {
         basket_call_greeks_cpu(&self.config, estimator)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AmericanPutPricer {
+    config: AmericanPutConfig,
+}
+
+impl Default for AmericanPutPricer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl AmericanPutPricer {
+    pub fn new() -> Self {
+        Self {
+            config: AmericanPutConfig::default(),
+        }
+    }
+
+    pub fn from_config(config: AmericanPutConfig) -> Self {
+        Self { config }
+    }
+
+    pub fn s0(mut self, value: f64) -> Self {
+        self.config.s0 = value;
+        self
+    }
+
+    pub fn strike(mut self, value: f64) -> Self {
+        self.config.k = value;
+        self
+    }
+
+    pub fn rate(mut self, value: f64) -> Self {
+        self.config.r = value;
+        self
+    }
+
+    pub fn volatility(mut self, value: f64) -> Self {
+        self.config.sigma = value;
+        self
+    }
+
+    pub fn maturity(mut self, value: f64) -> Self {
+        self.config.t = value;
+        self
+    }
+
+    pub fn paths(mut self, value: usize) -> Self {
+        self.config.n_paths = value;
+        self
+    }
+
+    pub fn steps(mut self, value: usize) -> Self {
+        self.config.n_steps = value;
+        self
+    }
+
+    pub fn seed(mut self, value: u64) -> Self {
+        self.config.seed = value;
+        self
+    }
+
+    pub fn threads(mut self, value: usize) -> Self {
+        self.config.n_threads = value;
+        self
+    }
+
+    pub fn basis_degree(mut self, value: usize) -> Self {
+        self.config.basis_degree = value;
+        self
+    }
+
+    pub fn config(&self) -> &AmericanPutConfig {
+        &self.config
+    }
+
+    pub fn price(&self) -> AmericanPutResult {
+        american_put_price_lsm_cpu(&self.config)
     }
 }
 
@@ -2905,6 +3051,140 @@ pub fn lookback_call_price_mc_cpu(cfg: &LookbackCallConfig) -> LookbackCallResul
         MonteCarloTechnique::Standard => lookback_call_price_mc_stepwise_standard(cfg),
         MonteCarloTechnique::Antithetic => lookback_call_price_mc_stepwise_antithetic(cfg),
         MonteCarloTechnique::ControlVariate => lookback_call_price_mc_stepwise_control_variate(cfg),
+    }
+}
+
+pub fn american_put_price_lsm_cpu(cfg: &AmericanPutConfig) -> AmericanPutResult {
+    validate_american_put_config(cfg);
+
+    let degree = cfg.basis_degree.clamp(1, 3);
+    let coeff_count = degree + 1;
+    let dt = cfg.t / cfg.n_steps as f64;
+    let drift = (cfg.r - 0.5 * cfg.sigma * cfg.sigma) * dt;
+    let vol_dt = cfg.sigma * dt.sqrt();
+    let discount_step = (-cfg.r * dt).exp();
+    let path_len = cfg.n_steps + 1;
+    let mut paths = vec![0.0; cfg.n_paths.saturating_mul(path_len)];
+    let mut rng = MonteCarloRng::new(cfg.seed);
+
+    for path_idx in 0..cfg.n_paths {
+        let offset = path_idx * path_len;
+        let mut s_t = cfg.s0;
+        paths[offset] = s_t;
+        for step in 1..=cfg.n_steps {
+            let z = rng.standard_normal();
+            s_t *= (drift + vol_dt * z).exp();
+            paths[offset + step] = s_t;
+        }
+    }
+
+    let mut cashflows = vec![0.0; cfg.n_paths];
+    let mut exercise_steps = vec![cfg.n_steps; cfg.n_paths];
+    for path_idx in 0..cfg.n_paths {
+        let terminal = paths[path_idx * path_len + cfg.n_steps];
+        cashflows[path_idx] = (cfg.k - terminal).max(0.0);
+    }
+
+    let mut regression_steps = 0usize;
+    for step in (1..cfg.n_steps).rev() {
+        let mut ata = [[0.0; 4]; 4];
+        let mut atb = [0.0; 4];
+        let mut itm_count = 0usize;
+
+        for path_idx in 0..cfg.n_paths {
+            let s_t = paths[path_idx * path_len + step];
+            let immediate = (cfg.k - s_t).max(0.0);
+            if immediate <= 0.0 {
+                continue;
+            }
+
+            let continuation =
+                cashflows[path_idx] * discount_step.powi((exercise_steps[path_idx] - step) as i32);
+            let basis = laguerre_lsm_basis(s_t / cfg.k.max(f64::MIN_POSITIVE), degree);
+            for row in 0..coeff_count {
+                atb[row] += basis[row] * continuation;
+                for col in 0..coeff_count {
+                    ata[row][col] += basis[row] * basis[col];
+                }
+            }
+            itm_count += 1;
+        }
+
+        if itm_count < coeff_count {
+            continue;
+        }
+
+        let Some(coefficients) = solve_lsm_normal_equations(ata, atb, coeff_count) else {
+            continue;
+        };
+        regression_steps += 1;
+
+        for path_idx in 0..cfg.n_paths {
+            let s_t = paths[path_idx * path_len + step];
+            let immediate = (cfg.k - s_t).max(0.0);
+            if immediate <= 0.0 {
+                continue;
+            }
+
+            let basis = laguerre_lsm_basis(s_t / cfg.k.max(f64::MIN_POSITIVE), degree);
+            let continuation = (0..coeff_count)
+                .map(|idx| coefficients[idx] * basis[idx])
+                .sum::<f64>();
+            if immediate > continuation.max(0.0) {
+                cashflows[path_idx] = immediate;
+                exercise_steps[path_idx] = step;
+            }
+        }
+    }
+
+    let intrinsic_now = (cfg.k - cfg.s0).max(0.0);
+    let mut sum = 0.0;
+    let mut sq_sum = 0.0;
+    let mut early_exercise_count = 0usize;
+    let mut maturity_exercise_count = 0usize;
+
+    for path_idx in 0..cfg.n_paths {
+        let discounted = cashflows[path_idx] * discount_step.powi(exercise_steps[path_idx] as i32);
+        sum += discounted;
+        sq_sum += discounted * discounted;
+        if exercise_steps[path_idx] < cfg.n_steps {
+            early_exercise_count += 1;
+        } else if cashflows[path_idx] > 0.0 {
+            maturity_exercise_count += 1;
+        }
+    }
+
+    let mut summary = summarize_payoffs(cfg.n_paths, sum, sq_sum);
+    if intrinsic_now > summary.price {
+        summary.price = intrinsic_now;
+        summary.stderr = 0.0;
+    }
+
+    let mut warnings = vec![
+        "Longstaff-Schwartz estimate uses Laguerre basis regression on simulated GBM paths; it is a lower-biased Monte Carlo estimator and should be benchmarked against external references before broad product claims.".to_string(),
+        "American-put support is CPU reference only; native GPU, Greeks, dividends, stochastic rates, and multi-asset exercise policies are not implemented yet.".to_string(),
+    ];
+    if cfg.basis_degree != degree {
+        warnings.push("basis_degree was clamped to the supported range [1, 3].".to_string());
+    }
+    if cfg.n_threads > 1 {
+        warnings.push(
+            "n_threads is accepted for API symmetry, but the v1 LSM regression path is single-thread deterministic.".to_string(),
+        );
+    }
+
+    AmericanPutResult {
+        workload: PricingWorkloadFamily::AmericanPut,
+        price: summary.price,
+        stderr: summary.stderr,
+        paths: cfg.n_paths,
+        steps: cfg.n_steps,
+        seed: cfg.seed,
+        early_exercise_count,
+        maturity_exercise_count,
+        regression_steps,
+        regression_basis: format!("laguerre_lsm_degree_{degree}"),
+        warnings,
     }
 }
 
@@ -3927,6 +4207,16 @@ fn validate_basket_call_config(cfg: &BasketCallConfig) {
     assert!(cfg.sigma2 >= 0.0, "sigma2 must be >= 0");
     assert!(cfg.t > 0.0, "t must be > 0");
     assert!((-1.0..=1.0).contains(&cfg.rho), "rho must be in [-1, 1]");
+}
+
+fn validate_american_put_config(cfg: &AmericanPutConfig) {
+    assert!(cfg.n_paths > 0, "n_paths must be > 0");
+    assert!(cfg.n_steps >= 2, "n_steps must be >= 2 for LSM regression");
+    assert!(cfg.s0 > 0.0, "s0 must be > 0");
+    assert!(cfg.k > 0.0, "k must be > 0");
+    assert!(cfg.sigma >= 0.0, "sigma must be >= 0");
+    assert!(cfg.t > 0.0, "t must be > 0");
+    assert!(cfg.basis_degree > 0, "basis_degree must be > 0");
 }
 
 #[allow(dead_code)]
@@ -6184,6 +6474,77 @@ pub(crate) fn summarize_block_estimates(
     let stderr = variance.max(0.0).sqrt() / n.sqrt();
 
     EuropeanCallResult { price, stderr }
+}
+
+fn laguerre_lsm_basis(x: f64, degree: usize) -> [f64; 4] {
+    let x2 = x * x;
+    let x3 = x2 * x;
+    let mut basis = [0.0; 4];
+    basis[0] = 1.0;
+    if degree >= 1 {
+        basis[1] = 1.0 - x;
+    }
+    if degree >= 2 {
+        basis[2] = 1.0 - 2.0 * x + 0.5 * x2;
+    }
+    if degree >= 3 {
+        basis[3] = 1.0 - 3.0 * x + 1.5 * x2 - x3 / 6.0;
+    }
+    basis
+}
+
+fn solve_lsm_normal_equations(
+    mut matrix: [[f64; 4]; 4],
+    mut rhs: [f64; 4],
+    dimension: usize,
+) -> Option<[f64; 4]> {
+    for pivot_idx in 0..dimension {
+        let mut best_row = pivot_idx;
+        let mut best_abs = matrix[pivot_idx][pivot_idx].abs();
+        for (row_idx, row) in matrix
+            .iter()
+            .enumerate()
+            .take(dimension)
+            .skip(pivot_idx + 1)
+        {
+            let candidate = row[pivot_idx].abs();
+            if candidate > best_abs {
+                best_row = row_idx;
+                best_abs = candidate;
+            }
+        }
+
+        if best_abs <= 1e-12 {
+            return None;
+        }
+
+        if best_row != pivot_idx {
+            matrix.swap(pivot_idx, best_row);
+            rhs.swap(pivot_idx, best_row);
+        }
+
+        let pivot = matrix[pivot_idx][pivot_idx];
+        for col_idx in pivot_idx..dimension {
+            matrix[pivot_idx][col_idx] /= pivot;
+        }
+        rhs[pivot_idx] /= pivot;
+
+        for row_idx in 0..dimension {
+            if row_idx == pivot_idx {
+                continue;
+            }
+            let factor = matrix[row_idx][pivot_idx];
+            if factor == 0.0 {
+                continue;
+            }
+            for col_idx in pivot_idx..dimension {
+                matrix[row_idx][col_idx] -= factor * matrix[pivot_idx][col_idx];
+            }
+            rhs[row_idx] -= factor * rhs[pivot_idx];
+        }
+    }
+
+    Some(rhs)
 }
 
 pub(crate) fn summarize_control_variate(

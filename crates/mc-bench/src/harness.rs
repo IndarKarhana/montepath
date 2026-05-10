@@ -3,21 +3,22 @@ use std::process::Command;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use mc_core::{
-    arithmetic_asian_call_price_mc_cpu, arithmetic_asian_call_price_mlmc_cpu,
-    basket_call_price_mc_cpu, black_scholes_european_call_greeks,
-    compare_arithmetic_asian_sampling_quality_cpu, compare_basket_call_sampling_quality_cpu,
-    compare_down_and_out_sampling_quality_cpu, compare_european_call_realized_error_cpu,
-    compare_european_call_sampling_quality_cpu, compare_heston_black_scholes_limit_cpu,
-    compare_lookback_call_sampling_quality_cpu, down_and_out_call_price_mc_cpu,
-    european_call_greeks_cpu, european_call_price_mc_cpu_stepwise,
+    american_put_price_lsm_cpu, arithmetic_asian_call_price_mc_cpu,
+    arithmetic_asian_call_price_mlmc_cpu, basket_call_price_mc_cpu,
+    black_scholes_european_call_greeks, compare_arithmetic_asian_sampling_quality_cpu,
+    compare_basket_call_sampling_quality_cpu, compare_down_and_out_sampling_quality_cpu,
+    compare_european_call_realized_error_cpu, compare_european_call_sampling_quality_cpu,
+    compare_heston_black_scholes_limit_cpu, compare_lookback_call_sampling_quality_cpu,
+    down_and_out_call_price_mc_cpu, european_call_greeks_cpu, european_call_price_mc_cpu_stepwise,
     european_call_price_mc_cpu_terminal, gaussian_uncertainty_mean_cpu,
     generate_standard_normals_cpu, heston_european_call_greeks_cpu,
     heston_european_call_price_mc_cpu, lookback_call_price_mc_cpu, plan_execution,
     price_all_current_greeks_bump_and_revalue_cpu, solve_arithmetic_asian_mlmc_tolerance_cpu,
-    ArithmeticAsianCallConfig, ArithmeticAsianMlmcConfig, ArithmeticAsianMlmcToleranceConfig,
-    BackendId, BackendPreference, BackendSupportReport, BasketCallConfig, DownAndOutCallConfig,
-    EuropeanCallConfig, GaussianUncertaintyConfig, Greek, GreekEstimator, HestonEuropeanCallConfig,
-    LookbackCallConfig, MonteCarloTechnique, PlannerMode, RunConfig, SamplingMethod,
+    AmericanPutConfig, ArithmeticAsianCallConfig, ArithmeticAsianMlmcConfig,
+    ArithmeticAsianMlmcToleranceConfig, BackendId, BackendPreference, BackendSupportReport,
+    BasketCallConfig, DownAndOutCallConfig, EuropeanCallConfig, GaussianUncertaintyConfig, Greek,
+    GreekEstimator, HestonEuropeanCallConfig, LookbackCallConfig, MonteCarloTechnique, PlannerMode,
+    RunConfig, SamplingMethod,
 };
 #[cfg(feature = "metal-native")]
 use mc_core::{
@@ -167,6 +168,7 @@ fn run_full_benchmarks() -> BenchmarkReport {
             "mc_cpu_qmc_quality_lookback_latin_hypercube",
             "pricing_quality_lookback_latin_hypercube",
         ),
+        benchmark_mc_rust_cpu_american_put_lsm(MC_REPEATS),
         benchmark_mc_rust_cpu_heston_european_stepwise(MC_REPEATS),
         benchmark_mc_rust_cpu_heston_black_scholes_limit(),
         benchmark_mc_rust_cpu_european_greeks(GreekEstimator::BumpAndRevalue),
@@ -424,6 +426,7 @@ fn run_compact_benchmarks_inner() -> BenchmarkReport {
         benchmark_mc_rust_cpu_arithmetic_asian_mlqmc(1),
         benchmark_mc_rust_cpu_down_and_out_stepwise(1),
         benchmark_mc_rust_cpu_lookback_stepwise(1),
+        benchmark_mc_rust_cpu_american_put_lsm(1),
         benchmark_mc_rust_cpu_heston_european_stepwise(1),
         benchmark_mc_rust_cpu_heston_black_scholes_limit(),
         benchmark_mc_rust_cpu_european_greeks(GreekEstimator::BumpAndRevalue),
@@ -513,6 +516,11 @@ pub fn build_competitiveness_plan(report: &BenchmarkReport) -> String {
         .results
         .iter()
         .find(|r| r.benchmark_name == "mc_cpu_lookback_call_rust")
+        .and_then(|r| r.runtime_ms());
+    let american_put_lsm = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "mc_cpu_american_put_lsm_rust")
         .and_then(|r| r.runtime_ms());
     let heston_cpu = report
         .results
@@ -717,6 +725,12 @@ pub fn build_competitiveness_plan(report: &BenchmarkReport) -> String {
             runtime
         ));
     }
+    if let Some(runtime) = american_put_lsm {
+        out.push_str(&format!(
+            "- American put LSM CPU breadth is live (`{:.3} ms`) with European-put lower-bound validation.\n",
+            runtime
+        ));
+    }
     if let Some(runtime) = heston_cpu {
         out.push_str(&format!(
             "- Heston European CPU path simulation is live (`{:.3} ms`) with Black-Scholes-limit validation.\n",
@@ -751,7 +765,7 @@ pub fn build_competitiveness_plan(report: &BenchmarkReport) -> String {
         out.push_str("Maintain lead plan:\n");
         out.push_str("- Keep the step-wise benchmark as the primary competitive claim.\n");
         out.push_str("- Keep RNG and loop hot path allocation-free.\n");
-        out.push_str("- Keep breadth claims tied to the workloads we have actually benchmarked: European, Heston European, arithmetic Asian, down-and-out, lookback, basket, Greeks, and Gaussian UQ.\n");
+        out.push_str("- Keep breadth claims tied to the workloads we have actually benchmarked: European, Heston European, arithmetic Asian, down-and-out, lookback, American put LSM, basket, Greeks, and Gaussian UQ.\n");
         if let Some(count) = all_greek_count {
             out.push_str(&format!(
                 "- Greek breadth is live with `{:.0}` bump-and-revalue estimates across current CPU workload families.\n",
@@ -3334,6 +3348,49 @@ fn benchmark_mc_rust_cpu_lookback_stepwise_control_variate(repeats: usize) -> Be
         implementation: "mc-core::runtime::cpu::lookback_call_price_mc_cpu".to_string(),
         backend: "cpu_native".to_string(),
         methodology: Some("lookback_fixed_strike_stepwise_control_variate".to_string()),
+        planner_mode: "n/a".to_string(),
+        iterations: repeats,
+        total_runtime_ms: avg_runtime_ms * repeats as f64,
+        per_iteration_us: avg_runtime_ms * 1_000.0,
+        throughput_per_sec: if avg_runtime_ms == 0.0 {
+            cfg.n_paths as f64
+        } else {
+            (cfg.n_paths as f64) / (avg_runtime_ms / 1_000.0)
+        },
+        metric_name: Some("price_estimate".to_string()),
+        metric_value: Some(avg_price),
+    }
+}
+
+fn benchmark_mc_rust_cpu_american_put_lsm(repeats: usize) -> BenchmarkResult {
+    let cfg = AmericanPutConfig {
+        n_paths: MC_PATHS,
+        n_steps: MC_STEPS,
+        ..AmericanPutConfig::default()
+    };
+
+    let mut runtimes = Vec::with_capacity(repeats);
+    let mut prices = Vec::with_capacity(repeats);
+
+    for i in 0..repeats {
+        let mut cfg_i = cfg;
+        cfg_i.seed = cfg.seed + i as u64;
+        let started = Instant::now();
+        let result = american_put_price_lsm_cpu(&cfg_i);
+        let runtime_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        runtimes.push(runtime_ms);
+        prices.push(result.price);
+    }
+
+    let avg_runtime_ms = runtimes.iter().sum::<f64>() / runtimes.len() as f64;
+    let avg_price = prices.iter().sum::<f64>() / prices.len() as f64;
+
+    BenchmarkResult {
+        benchmark_name: "mc_cpu_american_put_lsm_rust".to_string(),
+        benchmark_version: "0.1".to_string(),
+        implementation: "mc-core::runtime::cpu::american_put_price_lsm_cpu".to_string(),
+        backend: "cpu_native".to_string(),
+        methodology: Some("american_put_longstaff_schwartz_laguerre".to_string()),
         planner_mode: "n/a".to_string(),
         iterations: repeats,
         total_runtime_ms: avg_runtime_ms * repeats as f64,

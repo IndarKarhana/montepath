@@ -54,13 +54,15 @@ Today we have:
   - down-and-out call
 - a first non-option Gaussian uncertainty-propagation benchmark with an analytic mean
 - measured planner calibration against local backend winners with `100%` accuracy on the tracked scenario suite
+- Phase 7.1 now has a CPU Longstaff-Schwartz American-put reference surface,
+  lower-bound European-put fixture, benchmark row, and method capability entry
 
 Today we do not yet have:
 
 - native CUDA kernel execution
 - native GPU structured sampling
 - dedicated native GPU hardware CI
-- broad market-leader coverage across more simulation families such as American-style exercise, advanced adjoint Greeks, adaptive MLMC, or scientific UQ workflows
+- broad market-leader coverage across more simulation families such as Bermudan schedules, advanced adjoint Greeks, adaptive MLMC, or scientific UQ workflows
 - full QuantLib breadth across calendars, curves, market conventions, and instrument families
 
 ## What Is Working Well
