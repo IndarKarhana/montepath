@@ -217,7 +217,8 @@ Primary competitors: QuantLib for finance breadth, SciPy/JAX-style stacks for ge
 Deliverables:
 
 - `done` Add an American put Longstaff-Schwartz CPU reference surface with explicit method assumptions, benchmark row, and lower-bound reference fixture.
-- `todo` Add Bermudan custom exercise schedules with reference fixtures and benchmark coverage.
+- `done` Add Bermudan custom exercise-step schedules with reference fixtures and benchmark coverage.
+- `todo` Add high-precision American/Bermudan reference grids or external comparison lanes before making flagship accuracy claims.
 - `todo` Add additional diffusion/model families such as jump diffusion, stochastic rates, or generic SDE templates after references are defined.
 - `todo` Add batch/portfolio parameter sweeps with reproducible manifests and benchmark coverage.
 - `todo` Add a broader scientific UQ surface beyond the first Gaussian analytic-mean workload.

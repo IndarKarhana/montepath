@@ -13,6 +13,8 @@ The target state is:
 - explicit determinism and backend-support semantics
 - machine-readable planning and execution outputs
 - a stable catalog of callable surfaces
+- MCP-compatible tool wrappers that expose these same typed contracts without
+  requiring an agent to scrape prose or infer unsupported behavior
 
 ## Principles
 
@@ -49,6 +51,7 @@ Narrow execution surfaces with deterministic seed handling and explicit workload
 Examples:
 
 - CPU European call reference execution
+- CPU American and Bermudan put Longstaff-Schwartz reference execution
 - future explain-plan helper
 
 ### Layer 3: General runtime execution
@@ -73,6 +76,11 @@ Current status:
 - `agent-run.v1` manifests attach seed, backend, method, estimator, config,
   build, hardware, warnings, reference, and determinism metadata to wrapper
   outputs
+- The Rust public surfaces are already shaped for future MCP wrapping: configs
+  are typed, results are serializable, warnings are explicit, and benchmark
+  artifacts are machine-readable. Missing MCP work is packaging a stable server
+  process, request/response schemas for each selected tool, authentication and
+  execution limits, and a compatibility/versioning policy.
 
 ## Tool-Readiness Checklist
 

@@ -467,6 +467,18 @@ fn rust_mc_benchmark_is_present() {
     );
     assert_eq!(american_put.metric_name.as_deref(), Some("price_estimate"));
 
+    let bermudan_put = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "mc_cpu_bermudan_put_lsm_rust")
+        .expect("Bermudan put LSM benchmark should be present");
+    assert!(bermudan_put.total_runtime_ms > 0.0);
+    assert_eq!(
+        bermudan_put.methodology.as_deref(),
+        Some("bermudan_put_longstaff_schwartz_laguerre_custom_schedule")
+    );
+    assert_eq!(bermudan_put.metric_name.as_deref(), Some("price_estimate"));
+
     let heston = report
         .results
         .iter()

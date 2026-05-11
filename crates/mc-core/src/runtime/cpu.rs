@@ -88,6 +88,7 @@ pub enum PricingWorkloadFamily {
     BasketCall,
     LookbackCall,
     AmericanPut,
+    BermudanPut,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -996,8 +997,8 @@ pub fn monte_carlo_method_capabilities() -> Vec<MonteCarloMethodCapability> {
             BackendMethodSupport::Planned,
             BackendMethodSupport::Planned,
             &[
-                "CPU reference support currently covers American puts under GBM with Laguerre continuation-value regression",
-                "European put lower-bound validation is committed; high-precision American fixtures and Bermudan schedules are pending",
+                "CPU reference support currently covers American puts and Bermudan custom-schedule puts under GBM with Laguerre continuation-value regression",
+                "European put lower-bound validation is committed; high-precision American/Bermudan fixtures and external comparison lanes are pending",
             ],
         ),
         method_capability(
@@ -1411,6 +1412,39 @@ impl Default for AmericanPutConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BermudanPutConfig {
+    pub s0: f64,
+    pub k: f64,
+    pub r: f64,
+    pub sigma: f64,
+    pub t: f64,
+    pub n_paths: usize,
+    pub n_steps: usize,
+    pub seed: u64,
+    pub n_threads: usize,
+    pub basis_degree: usize,
+    pub exercise_steps: Vec<usize>,
+}
+
+impl Default for BermudanPutConfig {
+    fn default() -> Self {
+        Self {
+            s0: 100.0,
+            k: 100.0,
+            r: 0.03,
+            sigma: 0.2,
+            t: 1.0,
+            n_paths: 100_000,
+            n_steps: 64,
+            seed: 42,
+            n_threads: 0,
+            basis_degree: 2,
+            exercise_steps: vec![16, 32, 48, 64],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AmericanPutResult {
     pub workload: PricingWorkloadFamily,
     pub price: f64,
@@ -1418,6 +1452,23 @@ pub struct AmericanPutResult {
     pub paths: usize,
     pub steps: usize,
     pub seed: u64,
+    pub early_exercise_count: usize,
+    pub maturity_exercise_count: usize,
+    pub regression_steps: usize,
+    pub regression_basis: String,
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BermudanPutResult {
+    pub workload: PricingWorkloadFamily,
+    pub price: f64,
+    pub stderr: f64,
+    pub paths: usize,
+    pub steps: usize,
+    pub seed: u64,
+    pub exercise_schedule: Vec<usize>,
+    pub exercise_date_count: usize,
     pub early_exercise_count: usize,
     pub maturity_exercise_count: usize,
     pub regression_steps: usize,
@@ -2162,6 +2213,92 @@ impl AmericanPutPricer {
 
     pub fn price(&self) -> AmericanPutResult {
         american_put_price_lsm_cpu(&self.config)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BermudanPutPricer {
+    config: BermudanPutConfig,
+}
+
+impl Default for BermudanPutPricer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl BermudanPutPricer {
+    pub fn new() -> Self {
+        Self {
+            config: BermudanPutConfig::default(),
+        }
+    }
+
+    pub fn from_config(config: BermudanPutConfig) -> Self {
+        Self { config }
+    }
+
+    pub fn s0(mut self, value: f64) -> Self {
+        self.config.s0 = value;
+        self
+    }
+
+    pub fn strike(mut self, value: f64) -> Self {
+        self.config.k = value;
+        self
+    }
+
+    pub fn rate(mut self, value: f64) -> Self {
+        self.config.r = value;
+        self
+    }
+
+    pub fn volatility(mut self, value: f64) -> Self {
+        self.config.sigma = value;
+        self
+    }
+
+    pub fn maturity(mut self, value: f64) -> Self {
+        self.config.t = value;
+        self
+    }
+
+    pub fn paths(mut self, value: usize) -> Self {
+        self.config.n_paths = value;
+        self
+    }
+
+    pub fn steps(mut self, value: usize) -> Self {
+        self.config.n_steps = value;
+        self
+    }
+
+    pub fn exercise_steps(mut self, value: Vec<usize>) -> Self {
+        self.config.exercise_steps = value;
+        self
+    }
+
+    pub fn seed(mut self, value: u64) -> Self {
+        self.config.seed = value;
+        self
+    }
+
+    pub fn threads(mut self, value: usize) -> Self {
+        self.config.n_threads = value;
+        self
+    }
+
+    pub fn basis_degree(mut self, value: usize) -> Self {
+        self.config.basis_degree = value;
+        self
+    }
+
+    pub fn config(&self) -> &BermudanPutConfig {
+        &self.config
+    }
+
+    pub fn price(&self) -> BermudanPutResult {
+        bermudan_put_price_lsm_cpu(&self.config)
     }
 }
 
@@ -3054,53 +3191,79 @@ pub fn lookback_call_price_mc_cpu(cfg: &LookbackCallConfig) -> LookbackCallResul
     }
 }
 
-pub fn american_put_price_lsm_cpu(cfg: &AmericanPutConfig) -> AmericanPutResult {
-    validate_american_put_config(cfg);
+struct PutLsmInput {
+    s0: f64,
+    k: f64,
+    r: f64,
+    sigma: f64,
+    t: f64,
+    n_paths: usize,
+    n_steps: usize,
+    seed: u64,
+    n_threads: usize,
+    basis_degree: usize,
+    exercise_schedule: Vec<usize>,
+    allow_intrinsic_now: bool,
+    support_warning: &'static str,
+    schedule_warning: Option<String>,
+}
 
-    let degree = cfg.basis_degree.clamp(1, 3);
+struct PutLsmCoreResult {
+    price: f64,
+    stderr: f64,
+    exercise_schedule: Vec<usize>,
+    early_exercise_count: usize,
+    maturity_exercise_count: usize,
+    regression_steps: usize,
+    regression_basis: String,
+    warnings: Vec<String>,
+}
+
+fn price_put_lsm_cpu(input: PutLsmInput) -> PutLsmCoreResult {
+    let degree = input.basis_degree.clamp(1, 3);
     let coeff_count = degree + 1;
-    let dt = cfg.t / cfg.n_steps as f64;
-    let drift = (cfg.r - 0.5 * cfg.sigma * cfg.sigma) * dt;
-    let vol_dt = cfg.sigma * dt.sqrt();
-    let discount_step = (-cfg.r * dt).exp();
-    let path_len = cfg.n_steps + 1;
-    let mut paths = vec![0.0; cfg.n_paths.saturating_mul(path_len)];
-    let mut rng = MonteCarloRng::new(cfg.seed);
+    let dt = input.t / input.n_steps as f64;
+    let drift = (input.r - 0.5 * input.sigma * input.sigma) * dt;
+    let vol_dt = input.sigma * dt.sqrt();
+    let discount_step = (-input.r * dt).exp();
+    let path_len = input.n_steps + 1;
+    let mut paths = vec![0.0; input.n_paths.saturating_mul(path_len)];
+    let mut rng = MonteCarloRng::new(input.seed);
 
-    for path_idx in 0..cfg.n_paths {
+    for path_idx in 0..input.n_paths {
         let offset = path_idx * path_len;
-        let mut s_t = cfg.s0;
+        let mut s_t = input.s0;
         paths[offset] = s_t;
-        for step in 1..=cfg.n_steps {
+        for step in 1..=input.n_steps {
             let z = rng.standard_normal();
             s_t *= (drift + vol_dt * z).exp();
             paths[offset + step] = s_t;
         }
     }
 
-    let mut cashflows = vec![0.0; cfg.n_paths];
-    let mut exercise_steps = vec![cfg.n_steps; cfg.n_paths];
-    for path_idx in 0..cfg.n_paths {
-        let terminal = paths[path_idx * path_len + cfg.n_steps];
-        cashflows[path_idx] = (cfg.k - terminal).max(0.0);
+    let mut cashflows = vec![0.0; input.n_paths];
+    let mut exercise_steps = vec![input.n_steps; input.n_paths];
+    for path_idx in 0..input.n_paths {
+        let terminal = paths[path_idx * path_len + input.n_steps];
+        cashflows[path_idx] = (input.k - terminal).max(0.0);
     }
 
     let mut regression_steps = 0usize;
-    for step in (1..cfg.n_steps).rev() {
+    for &step in input.exercise_schedule.iter().rev().skip(1) {
         let mut ata = [[0.0; 4]; 4];
         let mut atb = [0.0; 4];
         let mut itm_count = 0usize;
 
-        for path_idx in 0..cfg.n_paths {
+        for path_idx in 0..input.n_paths {
             let s_t = paths[path_idx * path_len + step];
-            let immediate = (cfg.k - s_t).max(0.0);
+            let immediate = (input.k - s_t).max(0.0);
             if immediate <= 0.0 {
                 continue;
             }
 
             let continuation =
                 cashflows[path_idx] * discount_step.powi((exercise_steps[path_idx] - step) as i32);
-            let basis = laguerre_lsm_basis(s_t / cfg.k.max(f64::MIN_POSITIVE), degree);
+            let basis = laguerre_lsm_basis(s_t / input.k.max(f64::MIN_POSITIVE), degree);
             for row in 0..coeff_count {
                 atb[row] += basis[row] * continuation;
                 for col in 0..coeff_count {
@@ -3119,14 +3282,14 @@ pub fn american_put_price_lsm_cpu(cfg: &AmericanPutConfig) -> AmericanPutResult 
         };
         regression_steps += 1;
 
-        for path_idx in 0..cfg.n_paths {
+        for path_idx in 0..input.n_paths {
             let s_t = paths[path_idx * path_len + step];
-            let immediate = (cfg.k - s_t).max(0.0);
+            let immediate = (input.k - s_t).max(0.0);
             if immediate <= 0.0 {
                 continue;
             }
 
-            let basis = laguerre_lsm_basis(s_t / cfg.k.max(f64::MIN_POSITIVE), degree);
+            let basis = laguerre_lsm_basis(s_t / input.k.max(f64::MIN_POSITIVE), degree);
             let continuation = (0..coeff_count)
                 .map(|idx| coefficients[idx] * basis[idx])
                 .sum::<f64>();
@@ -3137,54 +3300,131 @@ pub fn american_put_price_lsm_cpu(cfg: &AmericanPutConfig) -> AmericanPutResult 
         }
     }
 
-    let intrinsic_now = (cfg.k - cfg.s0).max(0.0);
     let mut sum = 0.0;
     let mut sq_sum = 0.0;
     let mut early_exercise_count = 0usize;
     let mut maturity_exercise_count = 0usize;
 
-    for path_idx in 0..cfg.n_paths {
+    for path_idx in 0..input.n_paths {
         let discounted = cashflows[path_idx] * discount_step.powi(exercise_steps[path_idx] as i32);
         sum += discounted;
         sq_sum += discounted * discounted;
-        if exercise_steps[path_idx] < cfg.n_steps {
+        if exercise_steps[path_idx] < input.n_steps {
             early_exercise_count += 1;
         } else if cashflows[path_idx] > 0.0 {
             maturity_exercise_count += 1;
         }
     }
 
-    let mut summary = summarize_payoffs(cfg.n_paths, sum, sq_sum);
-    if intrinsic_now > summary.price {
-        summary.price = intrinsic_now;
-        summary.stderr = 0.0;
+    let mut summary = summarize_payoffs(input.n_paths, sum, sq_sum);
+    if input.allow_intrinsic_now {
+        let intrinsic_now = (input.k - input.s0).max(0.0);
+        if intrinsic_now > summary.price {
+            summary.price = intrinsic_now;
+            summary.stderr = 0.0;
+        }
     }
 
     let mut warnings = vec![
         "Longstaff-Schwartz estimate uses Laguerre basis regression on simulated GBM paths; it is a lower-biased Monte Carlo estimator and should be benchmarked against external references before broad product claims.".to_string(),
-        "American-put support is CPU reference only; native GPU, Greeks, dividends, stochastic rates, and multi-asset exercise policies are not implemented yet.".to_string(),
+        input.support_warning.to_string(),
     ];
-    if cfg.basis_degree != degree {
+    if input.basis_degree != degree {
         warnings.push("basis_degree was clamped to the supported range [1, 3].".to_string());
     }
-    if cfg.n_threads > 1 {
+    if input.n_threads > 1 {
         warnings.push(
             "n_threads is accepted for API symmetry, but the v1 LSM regression path is single-thread deterministic.".to_string(),
         );
     }
+    if let Some(warning) = input.schedule_warning {
+        warnings.push(warning);
+    }
 
-    AmericanPutResult {
-        workload: PricingWorkloadFamily::AmericanPut,
+    PutLsmCoreResult {
         price: summary.price,
         stderr: summary.stderr,
-        paths: cfg.n_paths,
-        steps: cfg.n_steps,
-        seed: cfg.seed,
+        exercise_schedule: input.exercise_schedule,
         early_exercise_count,
         maturity_exercise_count,
         regression_steps,
         regression_basis: format!("laguerre_lsm_degree_{degree}"),
         warnings,
+    }
+}
+
+pub fn american_put_price_lsm_cpu(cfg: &AmericanPutConfig) -> AmericanPutResult {
+    validate_american_put_config(cfg);
+
+    let exercise_schedule = (1..=cfg.n_steps).collect::<Vec<_>>();
+    let core = price_put_lsm_cpu(PutLsmInput {
+        s0: cfg.s0,
+        k: cfg.k,
+        r: cfg.r,
+        sigma: cfg.sigma,
+        t: cfg.t,
+        n_paths: cfg.n_paths,
+        n_steps: cfg.n_steps,
+        seed: cfg.seed,
+        n_threads: cfg.n_threads,
+        basis_degree: cfg.basis_degree,
+        exercise_schedule,
+        allow_intrinsic_now: true,
+        support_warning: "American-put support is CPU reference only; native GPU, Greeks, dividends, stochastic rates, and multi-asset exercise policies are not implemented yet.",
+        schedule_warning: None,
+    });
+
+    AmericanPutResult {
+        workload: PricingWorkloadFamily::AmericanPut,
+        price: core.price,
+        stderr: core.stderr,
+        paths: cfg.n_paths,
+        steps: cfg.n_steps,
+        seed: cfg.seed,
+        early_exercise_count: core.early_exercise_count,
+        maturity_exercise_count: core.maturity_exercise_count,
+        regression_steps: core.regression_steps,
+        regression_basis: core.regression_basis,
+        warnings: core.warnings,
+    }
+}
+
+pub fn bermudan_put_price_lsm_cpu(cfg: &BermudanPutConfig) -> BermudanPutResult {
+    validate_bermudan_put_config(cfg);
+
+    let (exercise_schedule, schedule_warning) =
+        normalize_bermudan_exercise_schedule(&cfg.exercise_steps, cfg.n_steps);
+    let core = price_put_lsm_cpu(PutLsmInput {
+        s0: cfg.s0,
+        k: cfg.k,
+        r: cfg.r,
+        sigma: cfg.sigma,
+        t: cfg.t,
+        n_paths: cfg.n_paths,
+        n_steps: cfg.n_steps,
+        seed: cfg.seed,
+        n_threads: cfg.n_threads,
+        basis_degree: cfg.basis_degree,
+        exercise_schedule,
+        allow_intrinsic_now: false,
+        support_warning: "Bermudan-put support is CPU reference only; native GPU, Greeks, dividends, stochastic rates, and multi-asset exercise policies are not implemented yet.",
+        schedule_warning,
+    });
+
+    BermudanPutResult {
+        workload: PricingWorkloadFamily::BermudanPut,
+        price: core.price,
+        stderr: core.stderr,
+        paths: cfg.n_paths,
+        steps: cfg.n_steps,
+        seed: cfg.seed,
+        exercise_schedule: core.exercise_schedule.clone(),
+        exercise_date_count: core.exercise_schedule.len(),
+        early_exercise_count: core.early_exercise_count,
+        maturity_exercise_count: core.maturity_exercise_count,
+        regression_steps: core.regression_steps,
+        regression_basis: core.regression_basis,
+        warnings: core.warnings,
     }
 }
 
@@ -4217,6 +4457,54 @@ fn validate_american_put_config(cfg: &AmericanPutConfig) {
     assert!(cfg.sigma >= 0.0, "sigma must be >= 0");
     assert!(cfg.t > 0.0, "t must be > 0");
     assert!(cfg.basis_degree > 0, "basis_degree must be > 0");
+}
+
+fn validate_bermudan_put_config(cfg: &BermudanPutConfig) {
+    assert!(cfg.n_paths > 0, "n_paths must be > 0");
+    assert!(cfg.n_steps >= 2, "n_steps must be >= 2 for LSM regression");
+    assert!(cfg.s0 > 0.0, "s0 must be > 0");
+    assert!(cfg.k > 0.0, "k must be > 0");
+    assert!(cfg.sigma >= 0.0, "sigma must be >= 0");
+    assert!(cfg.t > 0.0, "t must be > 0");
+    assert!(cfg.basis_degree > 0, "basis_degree must be > 0");
+    assert!(
+        !cfg.exercise_steps.is_empty(),
+        "exercise_steps must include at least one exercise date"
+    );
+    for &step in &cfg.exercise_steps {
+        assert!(step > 0, "exercise_steps must be in 1..=n_steps");
+        assert!(step <= cfg.n_steps, "exercise_steps must be in 1..=n_steps");
+    }
+}
+
+fn normalize_bermudan_exercise_schedule(
+    exercise_steps: &[usize],
+    n_steps: usize,
+) -> (Vec<usize>, Option<String>) {
+    let mut schedule = exercise_steps.to_vec();
+    schedule.sort_unstable();
+    schedule.dedup();
+
+    let mut warning = None;
+    if schedule != exercise_steps {
+        warning =
+            Some("exercise_steps were sorted and deduplicated before LSM execution.".to_string());
+    }
+
+    if !schedule.contains(&n_steps) {
+        schedule.push(n_steps);
+        if let Some(existing) = &mut warning {
+            existing
+                .push_str(" Maturity was appended because terminal payoff is always evaluated.");
+        } else {
+            warning = Some(
+                "Maturity was appended to exercise_steps because terminal payoff is always evaluated."
+                    .to_string(),
+            );
+        }
+    }
+
+    (schedule, warning)
 }
 
 #[allow(dead_code)]

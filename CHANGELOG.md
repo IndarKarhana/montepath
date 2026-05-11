@@ -23,3 +23,6 @@
   remain explicit unavailable benchmark rows instead of failing the whole CI job.
 - Started Phase 7.1 with a CPU Longstaff-Schwartz American-put pricing surface,
   benchmark row, lower-bound reference fixture, and capability documentation.
+- Added Phase 7.2 CPU Longstaff-Schwartz Bermudan-put pricing with custom
+  exercise-step schedules, benchmark coverage, lower-bound reference fixture,
+  and MCP-oriented agent-surface documentation.

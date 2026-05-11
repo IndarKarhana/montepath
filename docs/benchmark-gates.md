@@ -11,7 +11,7 @@ The gates prevent obvious regressions while the codebase is still early.
 1. `schema_validation` per-iteration latency should stay below `100 us` in compact debug benchmark runs.
 2. `planner_overhead_auto` per-iteration latency should stay below `10 us` in debug benchmark runs.
 3. `planner_choice_accuracy` should remain at or above `75%` on the internal scenario set.
-4. `mc_cpu_european_call_rust`, `mc_cpu_down_and_out_call_rust`, `mc_cpu_lookback_call_rust`, `mc_cpu_american_put_lsm_rust`, and `mc_cpu_heston_european_call_rust` must be present in benchmark results.
+4. `mc_cpu_european_call_rust`, `mc_cpu_down_and_out_call_rust`, `mc_cpu_lookback_call_rust`, `mc_cpu_american_put_lsm_rust`, `mc_cpu_bermudan_put_lsm_rust`, and `mc_cpu_heston_european_call_rust` must be present in benchmark results.
 5. The competitiveness-plan builder must produce a plan that includes either:
 - `Maintain lead plan` when we win
 - `Action plan to close the gap` when we lose

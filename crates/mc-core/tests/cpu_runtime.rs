@@ -1,6 +1,6 @@
 use mc_core::{
     american_put_price_lsm_cpu, arithmetic_asian_call_price_mc_cpu,
-    arithmetic_asian_call_price_mlmc_cpu, basket_call_price_mc_cpu,
+    arithmetic_asian_call_price_mlmc_cpu, basket_call_price_mc_cpu, bermudan_put_price_lsm_cpu,
     black_scholes_european_call_greeks, black_scholes_european_call_price,
     black_scholes_european_put_price, compare_arithmetic_asian_sampling_quality_cpu,
     compare_basket_call_sampling_quality_cpu, compare_down_and_out_sampling_quality_cpu,
@@ -14,9 +14,9 @@ use mc_core::{
     structured_sampling_guidance_cpu, tune_arithmetic_asian_mlmc_allocation_cpu, AmericanPutConfig,
     AmericanPutPricer, ArithmeticAsianCallConfig, ArithmeticAsianCallPricer,
     ArithmeticAsianMlmcConfig, ArithmeticAsianMlmcPricer, ArithmeticAsianMlmcToleranceConfig,
-    BackendMethodSupport, BasketCallConfig, BasketCallPricer, DownAndOutCallConfig,
-    DownAndOutCallPricer, EuropeanCallConfig, EuropeanCallMethod, EuropeanCallPricer,
-    GaussianUncertaintyConfig, Greek, GreekEstimator, HestonEuropeanCallConfig,
+    BackendMethodSupport, BasketCallConfig, BasketCallPricer, BermudanPutConfig, BermudanPutPricer,
+    DownAndOutCallConfig, DownAndOutCallPricer, EuropeanCallConfig, EuropeanCallMethod,
+    EuropeanCallPricer, GaussianUncertaintyConfig, Greek, GreekEstimator, HestonEuropeanCallConfig,
     HestonEuropeanCallPricer, LookbackCallConfig, LookbackCallPricer, MonteCarloRng,
     MonteCarloTechnique, PricingWorkloadFamily, SamplingMethod,
 };
@@ -1222,6 +1222,78 @@ fn american_put_pricer_builder_supports_expressive_configuration() {
     assert!(result.price > 0.0);
     assert!(result.stderr >= 0.0);
     assert_eq!(result.regression_basis, "laguerre_lsm_degree_2");
+}
+
+#[test]
+fn bermudan_put_lsm_supports_custom_exercise_schedule() {
+    let cfg = BermudanPutConfig {
+        n_paths: 40_000,
+        n_steps: 64,
+        exercise_steps: vec![16, 32, 48, 64],
+        seed: 14_004,
+        ..BermudanPutConfig::default()
+    };
+
+    let r1 = bermudan_put_price_lsm_cpu(&cfg);
+    let r2 = bermudan_put_price_lsm_cpu(&cfg);
+
+    assert_eq!(r1, r2);
+    assert_eq!(r1.workload, PricingWorkloadFamily::BermudanPut);
+    assert_eq!(r1.exercise_schedule, vec![16, 32, 48, 64]);
+    assert_eq!(r1.exercise_date_count, 4);
+    assert_eq!(r1.regression_steps, 3);
+    assert_eq!(r1.regression_basis, "laguerre_lsm_degree_2");
+    assert!(r1
+        .warnings
+        .iter()
+        .any(|warning| warning.contains("Bermudan-put support is CPU reference only")));
+}
+
+#[test]
+fn bermudan_put_lsm_sits_between_european_lower_bound_and_american_schedule() {
+    let base = BermudanPutConfig {
+        n_paths: 80_000,
+        n_steps: 64,
+        exercise_steps: vec![16, 32, 48, 64],
+        seed: 14_005,
+        ..BermudanPutConfig::default()
+    };
+    let american_cfg = AmericanPutConfig {
+        n_paths: base.n_paths,
+        n_steps: base.n_steps,
+        seed: base.seed,
+        ..AmericanPutConfig::default()
+    };
+
+    let bermudan = bermudan_put_price_lsm_cpu(&base);
+    let american = american_put_price_lsm_cpu(&american_cfg);
+    let european = black_scholes_european_put_price(base.s0, base.k, base.r, base.sigma, base.t);
+
+    assert!(bermudan.price.is_finite());
+    assert!(bermudan.stderr >= 0.0);
+    assert!(bermudan.price + 3.0 * bermudan.stderr >= european);
+    assert!(bermudan.price <= base.k);
+    assert!(american.price + 3.0 * american.stderr >= bermudan.price - 3.0 * bermudan.stderr);
+}
+
+#[test]
+fn bermudan_put_pricer_builder_supports_schedule_configuration() {
+    let result = BermudanPutPricer::new()
+        .s0(100.0)
+        .strike(100.0)
+        .rate(0.03)
+        .volatility(0.2)
+        .maturity(1.0)
+        .paths(20_000)
+        .steps(32)
+        .exercise_steps(vec![8, 16, 24, 32])
+        .seed(14_006)
+        .basis_degree(2)
+        .price();
+
+    assert!(result.price > 0.0);
+    assert!(result.stderr >= 0.0);
+    assert_eq!(result.exercise_schedule, vec![8, 16, 24, 32]);
 }
 
 #[test]

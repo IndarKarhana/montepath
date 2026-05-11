@@ -81,6 +81,37 @@
       ]
     },
     {
+      "fixture_id": "black_scholes_bermudan_put_atm_1y_lower_bound",
+      "workload_id": "bermudan_put_gbm_lsm",
+      "reference_source": "closed_form_black_scholes_merton_put_parity",
+      "runtime_reference_surface": "black_scholes_european_put_price",
+      "comparison_metric": "bermudan_price_should_not_be_below_european_put_within_mc_error",
+      "parameters": {
+        "spot": 100.0,
+        "strike": 100.0,
+        "rate": 0.03,
+        "volatility": 0.2,
+        "maturity_years": 1.0,
+        "dividend_yield": 0.0,
+        "exercise_steps": [
+          16,
+          32,
+          48,
+          64
+        ]
+      },
+      "expected": {
+        "european_put_lower_bound": 6.457956738703833
+      },
+      "tolerance_guidance": {
+        "unit": "stderr_units",
+        "recommended_max_below_lower_bound": 3.0
+      },
+      "notes": [
+        "This is only a lower-bound sanity check for Bermudan puts, not a high-precision Bermudan reference price."
+      ]
+    },
+    {
       "fixture_id": "heston_black_scholes_limit_atm_1y",
       "workload_id": "heston_european_call",
       "reference_source": "black_scholes_limit_of_heston_when_vol_of_vol_is_zero_and_variance_is_constant",

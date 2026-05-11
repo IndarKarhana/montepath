@@ -110,6 +110,16 @@ fn benchmark_gates_hold_for_current_internal_suite() {
         Some("american_put_longstaff_schwartz_laguerre")
     );
 
+    let bermudan_put = find_metric("mc_cpu_bermudan_put_lsm_rust", &report);
+    assert!(
+        bermudan_put.total_runtime_ms > 0.0,
+        "mc_cpu_bermudan_put_lsm_rust gate failed: expected benchmark presence and positive runtime"
+    );
+    assert_eq!(
+        bermudan_put.methodology.as_deref(),
+        Some("bermudan_put_longstaff_schwartz_laguerre_custom_schedule")
+    );
+
     let heston = find_metric("mc_cpu_heston_european_call_rust", &report);
     assert!(
         heston.total_runtime_ms > 0.0,
