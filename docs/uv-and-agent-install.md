@@ -164,10 +164,10 @@ python -m venv /tmp/montepath-wheel-smoke
 Publishing should use the GitHub Actions trusted-publishing workflow at
 `.github/workflows/publish-pypi.yml` or an explicit PyPI token. The workflow
 publishes the source distribution plus manylinux x86_64, macOS universal2, and
-Windows x64 binary wheels. Trusted-publishing reruns check PyPI for existing
-files so missing supplemental wheels can be uploaded without republishing
-artifacts that already exist. Do not publish from an unverified local
-environment.
+Windows x64 binary wheels. Trusted-publishing reruns prune filenames already
+present on PyPI and check the package index so missing supplemental wheels can
+be uploaded without republishing artifacts that already exist. Do not publish
+from an unverified local environment.
 
 For the first trusted-publishing release, create a PyPI pending publisher with:
 

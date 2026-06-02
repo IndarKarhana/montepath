@@ -87,5 +87,30 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Prune already-published distributions
+        run: |
+          python - <<'PY'
+          from html import unescape
+          from pathlib import Path
+          from urllib.parse import unquote
+          from urllib.request import urlopen
+
+          index_html = urlopen("https://pypi.org/simple/montepath/").read().decode("utf-8")
+          index_text = unquote(unescape(index_html))
+
+          for path in sorted(Path("dist").iterdir()):
+              if path.name in index_text:
+                  print(f"Skipping already-published distribution: {path.name}")
+                  path.unlink()
+
+          remaining = sorted(path.name for path in Path("dist").iterdir())
+          if not remaining:
+              raise SystemExit("No new distributions remain to publish.")
+
+          print("Publishing new distributions:")
+          for name in remaining:
+              print(f"- {name}")
+          PY
+
       - name: Publish distributions to PyPI
-        run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/ dist/*
+        run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/montepath/ dist/*
