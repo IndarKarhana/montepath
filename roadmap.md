@@ -200,9 +200,9 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
 - `done` Publish `montepath` `0.1.0` source distribution to PyPI after final
   release checks.
 - `done` Publish `montepath` `0.1.1` with stable-ABI manylinux x86_64,
-  macOS arm64, and Windows x64 wheels.
-- `in-progress` Add macOS universal2 publishing through cross-build support
-  so macOS Intel coverage does not depend on scarce hosted Intel runners.
+  macOS arm64, macOS universal2, and Windows x64 wheels.
+- `done` Add macOS universal2 publishing through cross-build support so macOS
+  Intel coverage does not depend on scarce hosted Intel runners.
 - `done` Verify post-publication installation through `uv pip install
   montepath`, `uv add montepath`, and `uvx --from montepath montepath-mcp`.
 
@@ -216,14 +216,12 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
 - `done` Add baseline CPU CI for format, test, and benchmark smoke checks.
 - `done` Validate feature-gated native backend staging in CPU-only CI.
 - `done` Add Python package metadata, wheel/source build workflow, changelog, versioning policy, and release checklist.
-- `in-progress` Prepare MontePath for first PyPI publication.
+- `done` Prepare MontePath for first PyPI publication.
 - `done` Add docs-site structure with quickstarts, examples, benchmark interpretation, API reference, and migration notes.
 - `in-progress` Add native CUDA and Metal hardware CI on dedicated runners.
 
 ## Remaining V1 Completion Count
 
-There are `2` completion tracks remaining:
+There is `1` completion track remaining:
 
 1. Finish Phase 5 native CUDA execution in a later accelerator-focused version.
-2. Publish and verify macOS universal2 wheel coverage without blocking the
-   release path.
