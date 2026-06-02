@@ -195,12 +195,12 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
   repository URLs resolve.
 - `done` Add the GitHub Actions trusted-publishing workflow and repository
   `pypi` environment for PyPI OIDC publication.
-- `todo` Configure the PyPI account-side pending trusted publisher or provide a
+- `done` Configure the PyPI account-side pending trusted publisher or provide a
   scoped PyPI token.
 - `done` Publish `montepath` `0.1.0` source distribution to PyPI after final
   release checks.
-- `todo` Add a dedicated manylinux/macOS/Windows wheel publishing workflow for
-  binary wheels.
+- `in-progress` Publish `montepath` `0.1.1` with stable-ABI manylinux, macOS,
+  and Windows wheels.
 - `done` Verify post-publication installation through `uv pip install
   montepath`, `uv add montepath`, and `uvx --from montepath montepath-mcp`.
 
@@ -223,5 +223,5 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
 There are `2` completion tracks remaining:
 
 1. Finish Phase 5 native CUDA execution in a later accelerator-focused version.
-2. Publish MontePath `0.1.0` to PyPI and verify `uv`/`uvx` installation after
-   publication.
+2. Publish MontePath `0.1.1` wheels to PyPI and verify `uv`/`uvx` installation
+   after publication.

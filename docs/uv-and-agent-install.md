@@ -52,7 +52,7 @@ Expected installed-wheel shape:
 {
   "available": true,
   "module_name": "montepath._native",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "supported_functions": [
     "price_european_call",
     "price_arithmetic_asian_call",
@@ -162,10 +162,9 @@ python -m venv /tmp/montepath-wheel-smoke
 ```
 
 Publishing should use the GitHub Actions trusted-publishing workflow at
-`.github/workflows/publish-pypi.yml` or an explicit PyPI token. The first
-workflow publishes the source distribution; binary wheels should be added later
-from a dedicated manylinux/macOS/Windows wheel workflow. Do not publish from an
-unverified local environment.
+`.github/workflows/publish-pypi.yml` or an explicit PyPI token. The workflow
+publishes the source distribution plus manylinux, macOS, and Windows binary
+wheels. Do not publish from an unverified local environment.
 
 For the first trusted-publishing release, create a PyPI pending publisher with:
 
