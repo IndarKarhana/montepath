@@ -162,8 +162,10 @@ python -m venv /tmp/montepath-wheel-smoke
 ```
 
 Publishing should use the GitHub Actions trusted-publishing workflow at
-`.github/workflows/publish-pypi.yml` or an explicit PyPI token. Do not publish
-from an unverified local environment.
+`.github/workflows/publish-pypi.yml` or an explicit PyPI token. The first
+workflow publishes the source distribution; binary wheels should be added later
+from a dedicated manylinux/macOS/Windows wheel workflow. Do not publish from an
+unverified local environment.
 
 For the first trusted-publishing release, create a PyPI pending publisher with:
 

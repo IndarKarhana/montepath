@@ -77,9 +77,12 @@ Use the benchmark table format requested by project convention: include
 
 ## Publishing
 
-Preferred publishing path is PyPI trusted publishing from
+Preferred first publishing path is PyPI trusted publishing from
 `.github/workflows/publish-pypi.yml`. Create a GitHub release or run the
-workflow manually after the PyPI pending publisher is configured.
+workflow manually after the PyPI pending publisher is configured. The first
+workflow publishes the source distribution; platform wheels should be added
+from a dedicated manylinux/macOS/Windows wheel workflow so PyPI does not reject
+raw platform tags.
 
 If publishing manually, use a scoped PyPI token from a verified environment and
 publish only after the checks above pass:

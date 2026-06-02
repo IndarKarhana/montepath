@@ -197,7 +197,10 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
   `pypi` environment for PyPI OIDC publication.
 - `todo` Configure the PyPI account-side pending trusted publisher or provide a
   scoped PyPI token.
-- `todo` Publish `montepath` `0.1.0` to PyPI after final release checks.
+- `todo` Publish `montepath` `0.1.0` source distribution to PyPI after final
+  release checks.
+- `todo` Add a dedicated manylinux/macOS/Windows wheel publishing workflow for
+  binary wheels.
 - `todo` Verify post-publication installation through `uv pip install
   montepath`, `uv add montepath`, and `uvx --from montepath montepath-mcp`.
 
