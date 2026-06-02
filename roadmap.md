@@ -218,7 +218,8 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
 - `done` Add Python package metadata, wheel/source build workflow, changelog, versioning policy, and release checklist.
 - `done` Prepare MontePath for first PyPI publication.
 - `done` Add docs-site structure with quickstarts, examples, benchmark interpretation, API reference, and migration notes.
-- `in-progress` Add native CUDA and Metal hardware CI on dedicated runners.
+- `done` Add dedicated CUDA staging and native Metal hardware CI workflow on
+  self-hosted runners.
 
 ## Remaining V1 Completion Count
 

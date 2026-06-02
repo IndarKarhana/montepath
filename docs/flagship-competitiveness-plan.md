@@ -160,7 +160,8 @@ Deliverables:
 - `todo` Add GPU RNG with deterministic stream partitioning.
 - `done` Add GPU QMC generation or explicit unsupported diagnostics.
 - `done` Add JAX, CuPy, and PyTorch executable competitor baselines where hardware allows.
-- `in-progress` Add native GPU hardware CI.
+- `done` Add dedicated hardware CI workflow for CUDA staging and native Metal
+  validation on self-hosted runners.
 - `done` Add warmup, compile-time, execution-time, memory, and reproducibility reporting.
 - `done` Add dedicated competitor CI profiles for NumPy, Numba, SciPy QMC, QuantLib, JAX, CuPy, and PyTorch with explicit environment manifests.
 
@@ -174,6 +175,7 @@ Current evidence:
 - Competitor environment manifests: `benchmarks/competitors/environments/`
 - Accelerator requirements: `benchmarks/competitors/requirements-accelerators.txt`
 - Accelerator competitor workflow: `.github/workflows/accelerator-competitors.yml`
+- Native backend hardware workflow: `.github/workflows/gpu-hardware.yml`
 - Accelerator credibility docs: `docs/accelerator-competitor-benchmarking.md`
 
 CUDA-deferred caveat:
@@ -235,10 +237,10 @@ Definition of done:
 These are the remaining durable tracks:
 
 1. Non-CUDA v1 polish: `done`; see `docs/non-cuda-v1-completion-plan.md`.
-2. Public alpha packaging: publish signed wheel/source distributions, keep
-   uv/uvx install guidance current, and expand installed-package smoke coverage
-   across supported Python versions.
-3. Later CUDA version: native CUDA launch, reductions, deterministic GPU RNG, hardware CI, and NVIDIA competitor artifacts.
+2. Public alpha packaging: `done`; MontePath is published to PyPI with
+   source, Linux x86_64, macOS arm64/universal2, and Windows x64 artifacts,
+   and uv/uvx install guidance is current.
+3. Later CUDA version: native CUDA launch, reductions, deterministic GPU RNG, and NVIDIA competitor artifacts.
 
 Native CUDA execution is explicitly deferred out of the non-CUDA v1. It must
 not block the Python, documentation, Apple Metal, CPU, benchmark, and

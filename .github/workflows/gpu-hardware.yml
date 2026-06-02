@@ -2,10 +2,20 @@ name: GPU Hardware Validation
 
 on:
   workflow_dispatch:
+    inputs:
+      backend:
+        description: Hardware backend to validate.
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - cuda
+          - metal
 
 jobs:
   nvidia-cuda:
-    if: false
+    if: ${{ inputs.backend == 'all' || inputs.backend == 'cuda' }}
     runs-on:
       - self-hosted
       - linux
@@ -23,19 +33,60 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Environment probe
+      - name: Probe CUDA environment
         run: |
           nvidia-smi
+          command -v nvcc
+          nvcc --version
           rustc --version
           cargo --version
 
-      - name: Native CUDA test placeholder
+      - name: Run CUDA-native staging tests
+        run: cargo test -q -p mc-core --features cuda-native
+
+      - name: Run CUDA staging benchmark diagnostic
         run: |
-          echo "Enable this job when native CUDA kernels and runner infrastructure are ready."
-          exit 1
+          cargo run -p mc-bench --release --features cuda-native -- \
+            --profile compact \
+            --output benchmarks/cuda-hardware-staging-results.json
+
+      - name: Validate CUDA artifact policy
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("benchmarks/cuda-hardware-staging-results.json")
+          payload = json.loads(path.read_text())
+          if not payload.get("results"):
+              raise SystemExit("CUDA staging benchmark artifact has no rows")
+
+          native_rows = [
+              row for row in payload["results"]
+              if row["backend"].lower() == "nvidia_cuda"
+              or row["benchmark_name"].lower().startswith("mc_cuda")
+              or "cuda_native" in row["implementation"].lower()
+              or "cuda_native" in row["benchmark_name"].lower()
+              or "native_cuda" in row["implementation"].lower()
+              or "native_cuda" in row["benchmark_name"].lower()
+          ]
+          if native_rows:
+              raise SystemExit(
+                  "native CUDA benchmark rows must not appear until native launch "
+                  "and reductions are implemented"
+              )
+
+          print(f"Validated {len(payload['results'])} CUDA staging benchmark rows.")
+          PY
+
+      - name: Upload CUDA staging artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cuda-hardware-staging-results
+          path: benchmarks/cuda-hardware-staging-results.json
 
   apple-metal:
-    if: false
+    if: ${{ inputs.backend == 'all' || inputs.backend == 'metal' }}
     runs-on:
       - self-hosted
       - macOS
@@ -50,14 +101,51 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Environment probe
+      - name: Probe Metal environment
         run: |
           sw_vers
           system_profiler SPHardwareDataType
+          xcrun -find metal
+          xcrun -find metallib
           rustc --version
           cargo --version
 
-      - name: Native Metal test placeholder
+      - name: Run Metal-native tests
+        run: cargo test -q -p mc-core --features metal-native
+
+      - name: Run native Metal benchmark artifact
         run: |
-          echo "Enable this job when native Metal kernels and runner infrastructure are ready."
-          exit 1
+          cargo run -p mc-bench --release --features metal-native -- \
+            --profile full \
+            --output benchmarks/metal-hardware-results.json
+
+      - name: Validate native Metal benchmark rows
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          required = {
+              "mc_metal_european_call_native",
+              "mc_metal_european_call_native_antithetic",
+              "mc_metal_european_call_native_control_variate",
+              "mc_metal_arithmetic_asian_call_native",
+              "mc_metal_arithmetic_asian_call_native_control_variate",
+              "mc_metal_down_and_out_call_native",
+              "mc_metal_down_and_out_call_native_control_variate",
+          }
+
+          payload = json.loads(Path("benchmarks/metal-hardware-results.json").read_text())
+          names = {row["benchmark_name"] for row in payload["results"]}
+          missing = sorted(required - names)
+          if missing:
+              raise SystemExit(f"missing native Metal benchmark rows: {missing}")
+
+          print(f"Validated {len(required)} required native Metal benchmark rows.")
+          PY
+
+      - name: Upload Metal hardware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: metal-hardware-results
+          path: benchmarks/metal-hardware-results.json

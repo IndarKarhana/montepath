@@ -87,20 +87,27 @@ This catches most correctness regressions even before native GPU kernels exist.
 
 ## Layer 4: Hardware-Only Validation
 
-When native CUDA or Metal kernels land, we add dedicated hardware validation jobs.
+Dedicated hardware validation jobs live in
+`.github/workflows/gpu-hardware.yml`. The workflow is manual and accepts a
+backend selector (`all`, `cuda`, or `metal`) so runner availability is explicit.
 
 These should run on:
 
 - a self-hosted NVIDIA runner for CUDA
 - a self-hosted Apple Silicon runner for Metal
 
-Hardware jobs should validate:
+The current hardware jobs validate:
 
-- native compile success
-- native execution correctness vs CPU reference
-- deterministic or statistically bounded reproducibility
-- transfer and kernel timing telemetry
-- benchmark results against selected competitors
+- CUDA staging: NVIDIA environment probe, `nvcc` availability,
+  `cuda-native` feature-gated tests, and a compact benchmark diagnostic artifact
+  that must not contain native CUDA performance rows before native launch ships.
+- Apple Metal: Metal toolchain probe, `metal-native` feature-gated tests, a
+  full native Metal benchmark artifact, and required native Metal benchmark row
+  validation for the current GBM workload families.
+
+Later CUDA hardware jobs must additionally validate native launch,
+device-side reductions, deterministic GPU RNG stream partitioning, and
+CPU-vs-CUDA numerical agreement.
 
 ## Testing Policy By Development Stage
 
@@ -164,7 +171,8 @@ What we can still do:
 1. Keep CPU reference and fair benchmark suite green on every change.
 2. Keep GPU backend conformance tests green on every change.
 3. Use GitHub Actions CPU CI for default validation.
-4. Add manual hardware workflows now so the repo is ready when a CUDA or Apple runner is available.
+4. Run `.github/workflows/gpu-hardware.yml` on dedicated CUDA and Apple Silicon
+   runners before publishing hardware-backed accelerator artifacts.
 5. Only publish native GPU benchmark claims after running hardware workflows.
 
 ## Honest Communication Rule

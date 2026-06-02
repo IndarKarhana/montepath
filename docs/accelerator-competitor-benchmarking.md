@@ -63,6 +63,15 @@ uploads `benchmarks/accelerator-competitors-results.json`.
 Do not claim accelerator wins unless this workflow or an equivalent hardware
 run produced the artifact.
 
+Native backend hardware validation is handled separately by
+`.github/workflows/gpu-hardware.yml`:
+
+- `backend=cuda` validates NVIDIA runner readiness, `nvcc`, CUDA-native staging
+  tests, and a compact diagnostic artifact. It deliberately rejects native CUDA
+  benchmark rows until native launch and reductions are implemented.
+- `backend=metal` validates Apple Silicon Metal tooling, native Metal tests, a
+  full Metal benchmark artifact, and required native Metal benchmark rows.
+
 ## Current Limitation
 
 These competitor rows are accelerator baselines, not native CUDA support for
