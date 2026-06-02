@@ -21,6 +21,9 @@ from montepath import (
     NativeRuntimeStatus,
     NativeRuntimeUnavailableError,
     NativeWorkloadResult,
+    backend_capabilities,
+    benchmark_report,
+    execute_workload,
     has_native_runtime,
     gaussian_uncertainty_moments,
     native_runtime_status,
@@ -36,8 +39,11 @@ from montepath import (
     price_heston_european_call,
     price_lookback_call,
     price_merton_jump_diffusion_call,
+    production_status,
     recommend_method,
     require_native_runtime,
+    select_backend,
+    validate_workload_request,
 )
 
 
@@ -181,6 +187,102 @@ class PythonSurfaceTests(unittest.TestCase):
             )
         finally:
             sys.modules.pop(module_name, None)
+
+    def test_backend_capabilities_are_structured_and_honest(self) -> None:
+        capabilities = backend_capabilities("_montepath_native_missing_test_double")
+        by_id = {item.backend_id: item for item in capabilities}
+
+        self.assertEqual(by_id["python_reference"].status, "available")
+        self.assertEqual(by_id["cpu_native"].status, "unavailable")
+        self.assertIn("compiled native runtime", by_id["cpu_native"].reason or "")
+        self.assertIn(by_id["apple_metal"].status, {"available", "unsupported", "unavailable"})
+        self.assertIn("european_call", by_id["python_reference"].workloads)
+        self.assertFalse(by_id["nvidia_cuda"].agent_tool_ready)
+
+    def test_select_backend_prefers_native_cpu_when_available(self) -> None:
+        module_name = "_montepath_native_backend_selection"
+        module = ModuleType(module_name)
+        module.__version__ = "0.1-test"
+        module.price_european_call = lambda payload: {
+            "price": 1.0,
+            "stderr": 0.0,
+            "manifest": {"backend": "cpu_native"},
+        }
+        sys.modules[module_name] = module
+
+        try:
+            selected = select_backend("european_call", native_module=module_name)
+
+            self.assertTrue(selected.ok)
+            self.assertEqual(selected.backend_id, "cpu_native")
+            self.assertEqual(selected.execution_mode, "native_extension")
+            self.assertTrue(selected.agent_tool_ready)
+        finally:
+            sys.modules.pop(module_name, None)
+
+    def test_select_backend_reports_metal_explicitly_unavailable(self) -> None:
+        selected = select_backend(
+            "european_call",
+            backend="apple_metal",
+            native_module="_montepath_native_missing_test_double",
+        )
+
+        self.assertFalse(selected.ok)
+        self.assertEqual(selected.backend_id, "apple_metal")
+        self.assertIn("not exposed", selected.diagnostics[0]["message"])
+
+    def test_validate_and_execute_workload_use_production_selection(self) -> None:
+        validation = validate_workload_request(
+            "european_call",
+            {"n_paths": 256, "n_steps": 8, "seed": 31},
+            backend="python_reference",
+        )
+        result = execute_workload(
+            "european_call",
+            {"n_paths": 256, "n_steps": 8, "seed": 31},
+            backend="python_reference",
+        )
+
+        self.assertTrue(validation["ok"])
+        self.assertEqual(validation["selection"]["backend_id"], "python_reference")
+        self.assertEqual(result["manifest"]["backend"], "python_reference")
+        self.assertEqual(result["result"]["n_paths"], 256)
+
+    def test_execute_workload_dispatches_native_only_workloads(self) -> None:
+        module_name = "_montepath_native_production_dispatch"
+        module = ModuleType(module_name)
+        module.__version__ = "0.1-test"
+        module.price_lookback_call = lambda payload: {
+            "price": 2.5,
+            "stderr": 0.1,
+            "manifest": {"backend": "cpu_native", "seed": payload["seed"]},
+        }
+        sys.modules[module_name] = module
+
+        try:
+            result = execute_workload(
+                "lookback_call",
+                {"n_paths": 128, "n_steps": 8, "seed": 41},
+                backend="cpu_native",
+                native_module=module_name,
+            )
+
+            self.assertTrue(result["ok"])
+            self.assertEqual(result["selection"]["backend_id"], "cpu_native")
+            self.assertEqual(result["result"]["price"], 2.5)
+            self.assertEqual(result["manifest"]["backend"], "cpu_native")
+        finally:
+            sys.modules.pop(module_name, None)
+
+    def test_production_status_and_benchmark_report_are_agent_readable(self) -> None:
+        status = production_status("_montepath_native_missing_test_double")
+        report = benchmark_report()
+
+        self.assertEqual(status["schema_version"], "montepath-production-status.v1")
+        self.assertIn("backend_capabilities", status)
+        self.assertEqual(report["schema_version"], "montepath-benchmark-report.v1")
+        self.assertGreater(report["row_count"], 0)
+        self.assertIn("competitor_unavailable", report)
 
     def test_rust_backed_workload_configs_are_public_and_typed(self) -> None:
         basket = BasketCallConfig(correlation=0.35, n_paths=4096)

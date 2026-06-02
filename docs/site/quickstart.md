@@ -66,6 +66,23 @@ print(report.explain())
 The Python helpers are dependency-free reference UX helpers. Use benchmark
 artifacts for performance claims.
 
+## Check Production Capability
+
+```python
+from montepath import production_status, select_backend
+
+status = production_status()
+print(status["native_runtime"]["available"])
+
+selection = select_backend("european_call", backend="auto")
+print(selection.backend_id, selection.execution_mode)
+```
+
+For production Python use, `cpu_native` is the fast installed-package path when
+`montepath._native` is available. Apple Metal is currently validated through
+Rust feature-gated hardware workflows, not the PyPI Python bridge. CUDA native
+execution is deferred.
+
 ## Run The MCP Server
 
 After publication:

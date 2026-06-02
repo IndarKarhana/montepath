@@ -206,6 +206,21 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
 - `done` Verify post-publication installation through `uv pip install
   montepath`, `uv add montepath`, and `uvx --from montepath montepath-mcp`.
 
+## Phase 12: CPU + Metal Production Library Readiness
+
+- `done` Add production backend capability reporting for installed CPU native,
+  Python reference, Apple Metal, and deferred CUDA states.
+- `done` Add explicit backend selection and workload validation surfaces that
+  avoid silent fallback for unavailable Metal or deferred CUDA requests.
+- `done` Add benchmark artifact summary reporting so production checks can cite
+  evidence without running benchmarks.
+- `done` Add agent and MCP tools for installed capability inspection and
+  production readiness checks.
+- `done` Expand installed-package smoke coverage to verify production status,
+  backend selection, benchmark summaries, and MCP production tools.
+- `done` Update API, install, agent, and function-catalog docs for the
+  CPU-native production path and honest Metal/CUDA boundaries.
+
 ## Ongoing Engineering Quality Track
 
 - `in-progress` Test-driven development as default coding workflow.

@@ -20,6 +20,8 @@ class McpServerTests(unittest.TestCase):
         self.assertIn("montepath.validate", names)
         self.assertIn("montepath.execute", names)
         self.assertIn("montepath.mlmc_calibration", names)
+        self.assertIn("montepath.capabilities", names)
+        self.assertIn("montepath.production_check", names)
         validate = next(tool for tool in tools if tool["name"] == "montepath.validate")
         self.assertEqual(validate["inputSchema"]["type"], "object")
         self.assertIn("annotations", validate)

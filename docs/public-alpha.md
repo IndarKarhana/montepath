@@ -1,7 +1,8 @@
 # Public Alpha Positioning
 
 `montepath` is ready to share as a public alpha for users and agents who want
-an inspectable Monte Carlo runtime with benchmark-backed CPU execution.
+an inspectable Monte Carlo runtime with benchmark-backed CPU execution and
+production preflight surfaces for supported installed-package workflows.
 
 It should not be described as a general production replacement for mature
 scientific or quantitative libraries yet.
@@ -28,6 +29,7 @@ unsupported magic.
   workload catalog
 - benchmark-audited method comparison
 - local MCP tools for LLM agents
+- production capability checks before CPU-native or agent execution
 - research workflows where explicit manifests and caveats matter
 
 ## Not Yet A Fit For
@@ -52,7 +54,8 @@ When publishing or announcing, use alpha language:
 
 Avoid:
 
-- "production ready"
+- "production ready" without limiting the claim to supported CPU-native
+  installed-package surfaces
 - "fastest Monte Carlo library"
 - "drop-in replacement for NumPy/JAX/QuantLib"
 - "CUDA support" without saying staged/deferred
@@ -61,9 +64,7 @@ Avoid:
 
 Near-term:
 
-- publish signed wheel/source distributions
-- add CI release publishing with PyPI trusted publishing
-- expand installed-package smoke coverage across Python versions
+- expand installed-package smoke coverage across more Python versions
 - add planner bindings so Python recommendations can call the Rust planner
   directly
 - improve public examples and notebooks around the native CPU extension and

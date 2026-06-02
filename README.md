@@ -108,9 +108,16 @@ configuration, schemas, execution limits, and failure policy.
 ## Agent Tool Example
 
 ```python
-from montepath import agent_execute, agent_plan, agent_tool_manifest
+from montepath import (
+    agent_capabilities,
+    agent_execute,
+    agent_plan,
+    agent_production_check,
+    agent_tool_manifest,
+)
 
 print(agent_tool_manifest()["schema_version"])
+print(agent_capabilities({})["result"]["native_runtime"])
 
 plan = agent_plan({
     "workload": "european_call",
@@ -122,7 +129,14 @@ run = agent_execute({
     "config": {"n_paths": 10_000, "n_steps": 64, "seed": 42}
 })
 
+preflight = agent_production_check({
+    "workload": "european_call",
+    "config": {"n_paths": 10_000, "n_steps": 64, "seed": 42},
+    "backend": "auto"
+})
+
 print(plan["plan"])
+print(preflight["result"]["validation"]["selection"])
 print(run["manifest"])
 ```
 
@@ -361,7 +375,7 @@ What we should not overclaim yet:
 - structured sampling generation is now competitive and pricing overhead is much lower, but full structured-pricing paths still trail the pseudorandom CPU baseline; realized-error wins are currently benchmark evidence for the European analytic-reference case, not a universal guarantee
 - MLMC and MLQMC are CPU-reference only, and their tolerance planning is calibrated for the arithmetic Asian path but not yet broadly calibrated across workload families
 - native CUDA execution is not implemented yet and is deferred to a later accelerator-focused version
-- the Python UX helpers remain stable reference surfaces, and installed wheels now include a Rust-backed `montepath._native` CPU extension for the current native bridge functions; native Metal wheels and CUDA execution remain future work
+- installed wheels now include a Rust-backed `montepath._native` CPU extension and production preflight helpers for supported CPU-native use; native Metal wheels and CUDA execution remain future work
 - planner calibration is improving, but `87.5%` measured local accuracy is not broad production-grade backend intelligence yet
 
 ## Next Steps

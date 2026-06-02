@@ -54,6 +54,8 @@ Available tools:
 | Tool | Purpose | Determinism |
 | --- | --- | --- |
 | `montepath.validate` | Validate a supported workload request without executing simulation. | deterministic |
+| `montepath.capabilities` | Report installed CPU, Metal, CUDA, Python, MCP, and agent capability status. | deterministic |
+| `montepath.production_check` | Validate backend policy and summarize benchmark evidence without executing simulation. | deterministic |
 | `montepath.recommend` | Recommend method, sampling, and technique. | deterministic |
 | `montepath.plan` | Build a dry-run execution plan with cost and caveat metadata. | deterministic |
 | `montepath.execute` | Execute a narrow Python reference workload. | deterministic for same config and seed |
@@ -87,6 +89,23 @@ Every wrapper returns a manifest with:
 The manifest is intentionally explicit about Python reference execution. It
 does not claim Rust hot-path performance. Benchmark artifacts remain the source
 of truth for timing claims.
+
+## Production Capability Tools
+
+Use `montepath.capabilities` before asking an agent to execute work in a fresh
+environment. It reports:
+
+- whether the Rust CPU native extension is installed
+- which workloads the native bridge exposes
+- that Python reference helpers are available for narrow inspectable examples
+- that Apple Metal is currently validated through Rust feature-gated hardware
+  workflows, not the PyPI Python bridge
+- that CUDA native execution is deferred
+
+Use `montepath.production_check` before production execution. It validates the
+request against backend policy, returns explicit diagnostics for unavailable
+Metal/CUDA requests, and includes a benchmark-artifact summary. It does not run
+the simulation.
 
 ## Supported Workloads
 

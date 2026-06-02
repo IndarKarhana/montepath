@@ -80,6 +80,12 @@ Returns `GreekReport` with:
 ## Planning And Benchmarks
 
 - `recommend_method(...)`
+- `backend_capabilities(native_module="montepath._native")`
+- `select_backend(workload, backend="auto", native_module="montepath._native")`
+- `validate_workload_request(workload, config=None, backend="auto", native_module="montepath._native")`
+- `execute_workload(workload, config=None, backend="auto", native_module="montepath._native")`
+- `production_status(native_module="montepath._native")`
+- `benchmark_report(benchmark_artifact="benchmarks/release-results.json", workload=None, repo_root=None)`
 - `load_planner_evidence(...)`
 - `measured_winner_database(...)`
 - `cost_frontier(workload, ...)`
@@ -88,11 +94,20 @@ Returns `GreekReport` with:
 - `mlmc_error_calibration(workload="arithmetic_asian_call", ...)`
 - `run_benchmarks(...)`
 
+Production helpers are the recommended preflight layer for installed packages.
+They report whether CPU native execution is available, keep Apple Metal and
+CUDA unsupported/deferred states explicit, and summarize benchmark evidence
+without running benchmarks. `execute_workload` honors explicit backend
+requests; it raises `ProductionCapabilityError` rather than silently falling
+back from unavailable Metal or CUDA requests.
+
 ## Agent Tools
 
 - `agent_tool_manifest()`
 - `export_json_schemas()`
 - `agent_validate(request)`
+- `agent_capabilities(request=None)`
+- `agent_production_check(request)`
 - `agent_recommend(request)`
 - `agent_plan(request)`
 - `agent_execute(request)`

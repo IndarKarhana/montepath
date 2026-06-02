@@ -135,6 +135,13 @@ The tool list includes schemas exported from `montepath.export_json_schemas()`.
 Tool calls return content blocks with JSON-serialized `ok=true` or `ok=false`
 payloads.
 
+Production-oriented agent tools include:
+
+- `montepath.capabilities`: inspect installed CPU-native, Python-reference,
+  Apple Metal, CUDA, MCP, and agent readiness
+- `montepath.production_check`: validate a workload/config/backend request
+  against production policy and benchmark evidence without executing it
+
 Built-in limits:
 
 - maximum request size: `1_000_000` bytes

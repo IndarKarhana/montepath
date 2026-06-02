@@ -19,6 +19,18 @@ Rust-backed `montepath._native` CPU extension. The `cpu` extra is intentionally
 empty for now so downstream users can depend on a stable profile while CPU
 native execution remains part of the base wheel.
 
+Installed packages expose production preflight helpers:
+
+```python
+from montepath import backend_capabilities, production_status, select_backend
+
+print(production_status()["native_runtime"])
+print(select_backend("european_call").backend_id)
+```
+
+These helpers are also available to agents through `montepath.capabilities` and
+`montepath.production_check`.
+
 ## Apple Metal
 
 Apple Metal execution is currently exposed through Rust feature gates and

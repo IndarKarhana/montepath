@@ -16,12 +16,14 @@ from typing import Any, Callable, Mapping, TextIO
 
 from .agent import (
     agent_benchmark,
+    agent_capabilities,
     agent_compare,
     agent_compare_methods,
     agent_cost_frontier,
     agent_execute,
     agent_mlmc_calibration,
     agent_plan,
+    agent_production_check,
     agent_planner_evidence,
     agent_recommend,
     agent_reproduce,
@@ -59,6 +61,8 @@ class McpServerLimits:
 
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     "montepath.validate": agent_validate,
+    "montepath.capabilities": agent_capabilities,
+    "montepath.production_check": agent_production_check,
     "montepath.recommend": agent_recommend,
     "montepath.plan": agent_plan,
     "montepath.execute": agent_execute,

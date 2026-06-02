@@ -23,6 +23,7 @@ from .planner_intelligence import (
     mlmc_error_calibration,
     why_not_faster,
 )
+from .production import benchmark_report, production_status, validate_workload_request
 from .pricing import (
     ArithmeticAsianCallConfig,
     DownAndOutCallConfig,
@@ -51,6 +52,20 @@ def agent_tool_manifest() -> dict[str, Any]:
             "Validate a supported workload request without running simulation.",
             "montepath.validate.request",
             "montepath.validate.response",
+            deterministic=True,
+        ),
+        _tool(
+            "montepath.capabilities",
+            "Report installed CPU, Metal, CUDA, Python, MCP, and agent capability status.",
+            "montepath.capabilities.request",
+            "montepath.capabilities.response",
+            deterministic=True,
+        ),
+        _tool(
+            "montepath.production_check",
+            "Validate a request against production backend policy and benchmark evidence.",
+            "montepath.production_check.request",
+            "montepath.production_check.response",
             deterministic=True,
         ),
         _tool(
@@ -172,6 +187,24 @@ def export_json_schemas() -> dict[str, dict[str, Any]]:
         },
         "additionalProperties": False,
     }
+    capabilities_request_schema = {
+        "type": "object",
+        "properties": {"native_module": {"type": "string"}},
+        "additionalProperties": False,
+    }
+    production_check_request_schema = {
+        "type": "object",
+        "required": ["workload"],
+        "properties": {
+            "workload": {"type": "string"},
+            "config": {"type": "object"},
+            "backend": {"type": "string"},
+            "native_module": {"type": "string"},
+            "repo_root": {"type": "string"},
+            "benchmark_artifact": {"type": "string"},
+        },
+        "additionalProperties": False,
+    }
     planner_artifact_schema = {
         "type": "object",
         "properties": {
@@ -194,6 +227,10 @@ def export_json_schemas() -> dict[str, dict[str, Any]]:
     schemas = {
         "montepath.validate.request": request_schema,
         "montepath.validate.response": response_schema,
+        "montepath.capabilities.request": capabilities_request_schema,
+        "montepath.capabilities.response": response_schema,
+        "montepath.production_check.request": production_check_request_schema,
+        "montepath.production_check.response": response_schema,
         "montepath.recommend.request": request_schema,
         "montepath.recommend.response": response_schema,
         "montepath.plan.request": request_schema,
@@ -257,6 +294,60 @@ def agent_validate(request: Mapping[str, Any]) -> dict[str, Any]:
             config=config,
             method="validation_only",
             warnings=tuple(item["message"] for item in diagnostics),
+        ),
+    }
+
+
+def agent_capabilities(request: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    payload = dict(request or {})
+    native_module = str(payload.get("native_module", "montepath._native"))
+    result = production_status(native_module)
+    return {
+        "ok": True,
+        "result": result,
+        "manifest": _agent_manifest(
+            tool="montepath.capabilities",
+            workload="capability_inspection",
+            config={"native_module": native_module},
+            method="capability_report",
+            warnings=tuple(result.get("production_notes", ())),
+        ),
+    }
+
+
+def agent_production_check(request: Mapping[str, Any]) -> dict[str, Any]:
+    workload = str(request.get("workload", ""))
+    config = _config_payload(request)
+    backend = str(request.get("backend", "auto"))
+    native_module = str(request.get("native_module", "montepath._native"))
+    validation = validate_workload_request(
+        workload,
+        config,
+        backend=backend,
+        native_module=native_module,
+    )
+    benchmark_kwargs = _artifact_kwargs(request)
+    report = benchmark_report(**benchmark_kwargs)
+    diagnostics = list(validation.get("diagnostics", ()))
+    return {
+        "ok": not diagnostics,
+        "result": {
+            "validation": validation,
+            "benchmark_report": report,
+            "production_policy": {
+                "cpu_native": "preferred Python production fast path when installed",
+                "python_reference": "allowed for reproducibility demos and small agent-safe executions",
+                "apple_metal": "validated through Rust hardware workflow; not exposed through PyPI Python bridge yet",
+                "nvidia_cuda": "deferred until native launch, reductions, and deterministic GPU RNG land",
+            },
+        },
+        "diagnostics": diagnostics,
+        "manifest": _agent_manifest(
+            tool="montepath.production_check",
+            workload=workload or "unknown",
+            config=config | {"backend": backend, "native_module": native_module},
+            method="production_readiness_check",
+            warnings=tuple(validation.get("warnings", ())) + tuple(report.get("notes", ())),
         ),
     }
 

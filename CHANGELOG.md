@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Added production preflight helpers for installed CPU-native, Python
+  reference, Apple Metal, and CUDA capability reporting.
+- Added explicit backend selection and workload validation surfaces that avoid
+  silent fallback for unavailable Metal or deferred CUDA execution.
+- Added agent and MCP tools for installed capability inspection and production
+  readiness checks.
+- Expanded installed-package smoke coverage to verify production status,
+  backend selection, benchmark summaries, and MCP production tools.
+
 ## 0.1.1
 
 - Added stable-ABI Python extension builds for Python 3.10+.

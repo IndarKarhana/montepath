@@ -3,9 +3,16 @@
 The Python package exposes stable, JSON-serializable agent wrappers:
 
 ```python
-from montepath import agent_execute, agent_plan, agent_tool_manifest
+from montepath import (
+    agent_capabilities,
+    agent_execute,
+    agent_plan,
+    agent_production_check,
+    agent_tool_manifest,
+)
 
 print(agent_tool_manifest())
+print(agent_capabilities({})["result"]["native_runtime"])
 
 plan = agent_plan({
     "workload": "european_call",
@@ -15,6 +22,12 @@ plan = agent_plan({
 run = agent_execute({
     "workload": "european_call",
     "config": {"n_paths": 128, "n_steps": 4, "seed": 5}
+})
+
+preflight = agent_production_check({
+    "workload": "european_call",
+    "config": {"n_paths": 128, "n_steps": 4, "seed": 5},
+    "backend": "auto"
 })
 ```
 

@@ -11,11 +11,15 @@ from montepath import (
     BasketCallConfig,
     EuropeanCallConfig,
     GaussianUncertaintyConfig,
+    backend_capabilities,
+    benchmark_report,
     native_runtime_status,
     price_arithmetic_asian_mlmc,
     price_basket_call,
     price_european_call,
+    production_status,
     gaussian_uncertainty_moments,
+    select_backend,
 )
 from montepath.mcp_server import handle_jsonrpc, server_metadata
 
@@ -59,12 +63,28 @@ def main() -> int:
     if "price" not in mlmc.values:
         raise SystemExit("native MLMC smoke missing price")
 
+    capabilities = {item.backend_id: item for item in backend_capabilities()}
+    if capabilities["cpu_native"].status != "available":
+        raise SystemExit("production capabilities did not detect installed CPU native backend")
+    selected = select_backend("european_call")
+    if not selected.ok or selected.backend_id != "cpu_native":
+        raise SystemExit(f"production backend selection failed: {selected.as_dict()}")
+    status_payload = production_status()
+    if status_payload["schema_version"] != "montepath-production-status.v1":
+        raise SystemExit("production status schema missing")
+    report = benchmark_report()
+    if report["schema_version"] != "montepath-benchmark-report.v1":
+        raise SystemExit("benchmark report schema missing")
+
     metadata = server_metadata()
     if metadata["schema_version"] != "mcp-server.v1":
         raise SystemExit("MCP server metadata missing or invalid")
     tools = handle_jsonrpc({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     if tools is None or "result" not in tools:
         raise SystemExit("MCP tools/list smoke failed")
+    tool_names = {tool["name"] for tool in tools["result"]["tools"]}
+    if "montepath.capabilities" not in tool_names or "montepath.production_check" not in tool_names:
+        raise SystemExit("MCP production tools missing")
 
     print("installed package smoke passed")
     return 0

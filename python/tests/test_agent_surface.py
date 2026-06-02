@@ -4,6 +4,7 @@ from montepath import (
     agent_benchmark,
     agent_compare,
     agent_compare_methods,
+    agent_capabilities,
     agent_cost_frontier,
     agent_execute,
     agent_mlmc_calibration,
@@ -11,6 +12,7 @@ from montepath import (
     agent_planner_evidence,
     agent_recommend,
     agent_reproduce,
+    agent_production_check,
     agent_tool_manifest,
     agent_validate,
     agent_why_not_faster,
@@ -36,6 +38,8 @@ class AgentSurfaceTests(unittest.TestCase):
         self.assertIn("montepath.compare_methods", tool_names)
         self.assertIn("montepath.why_not_faster", tool_names)
         self.assertIn("montepath.mlmc_calibration", tool_names)
+        self.assertIn("montepath.capabilities", tool_names)
+        self.assertIn("montepath.production_check", tool_names)
 
     def test_json_schema_export_contains_execute_contract(self) -> None:
         schemas = export_json_schemas()
@@ -44,6 +48,8 @@ class AgentSurfaceTests(unittest.TestCase):
         self.assertIn("montepath.execute.response", schemas)
         self.assertIn("montepath.compare_methods.request", schemas)
         self.assertIn("montepath.why_not_faster.request", schemas)
+        self.assertIn("montepath.capabilities.response", schemas)
+        self.assertIn("montepath.production_check.response", schemas)
         self.assertEqual(schemas["montepath.execute.request"]["type"], "object")
         self.assertIn("workload", schemas["montepath.execute.request"]["required"])
 
@@ -127,6 +133,16 @@ class AgentSurfaceTests(unittest.TestCase):
         self.assertGreater(len(why_not["result"]["reasons"]), 0)
         self.assertTrue(calibration["ok"])
         self.assertIn("calibration_status", calibration["result"])
+
+    def test_capabilities_and_production_check_are_agent_safe(self) -> None:
+        capabilities = agent_capabilities({})
+        production = agent_production_check({"workload": "european_call", "config": {"n_paths": 128}})
+
+        self.assertTrue(capabilities["ok"])
+        self.assertIn("backend_capabilities", capabilities["result"])
+        self.assertTrue(production["ok"])
+        self.assertIn("benchmark_report", production["result"])
+        self.assertEqual(production["manifest"]["tool"], "montepath.production_check")
 
 
 if __name__ == "__main__":
