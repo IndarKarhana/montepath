@@ -4,7 +4,7 @@
 
 - Added stable-ABI Python extension builds for Python 3.10+.
 - Added trusted-publishing workflow support for source distributions plus
-  manylinux, macOS, and Windows binary wheels.
+  manylinux x86_64, macOS arm64, and Windows x64 binary wheels.
 
 ## 0.1.0
 

@@ -199,8 +199,10 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
   scoped PyPI token.
 - `done` Publish `montepath` `0.1.0` source distribution to PyPI after final
   release checks.
-- `in-progress` Publish `montepath` `0.1.1` with stable-ABI manylinux, macOS,
-  and Windows wheels.
+- `in-progress` Publish `montepath` `0.1.1` with stable-ABI manylinux x86_64,
+  macOS arm64, and Windows x64 wheels.
+- `todo` Add macOS Intel wheel publishing once runner availability or
+  cross-build support is reliable enough not to block release publication.
 - `done` Verify post-publication installation through `uv pip install
   montepath`, `uv add montepath`, and `uvx --from montepath montepath-mcp`.
 
