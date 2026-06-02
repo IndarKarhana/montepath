@@ -116,7 +116,7 @@ Definition of done:
 
 Evidence:
 
-- Python UX helpers: `python/mc_library/pricing.py`
+- Python UX helpers: `python/montepath/pricing.py`
 - Quickstart docs: `docs/site/quickstart.md`
 - API reference: `docs/site/api-reference.md`
 - Install profiles: `docs/install-profiles.md`
@@ -145,7 +145,7 @@ Definition of done:
 
 Evidence:
 
-- Agent tools: `python/mc_library/agent.py`
+- Agent tools: `python/montepath/agent.py`
 - Agent tests: `python/tests/test_agent_surface.py`
 - Agent docs: `docs/agent-tooling.md`
 - Exact payload examples: `docs/agent-examples.json`
@@ -203,14 +203,14 @@ Definition of done:
 Evidence:
 
 - Planner intelligence docs: `docs/planner-intelligence.md`
-- Python evidence surfaces: `python/mc_library/planner_intelligence.py`
-- Agent wrappers: `mc.planner_evidence`, `mc.cost_frontier`, `mc.compare_methods`, `mc.why_not_faster`, `mc.mlmc_calibration`
+- Python evidence surfaces: `python/montepath/planner_intelligence.py`
+- Agent wrappers: `montepath.planner_evidence`, `montepath.cost_frontier`, `montepath.compare_methods`, `montepath.why_not_faster`, `montepath.mlmc_calibration`
 - Release benchmark artifact: `benchmarks/release-results.json`
 - Current measured planner-choice accuracy: `100%` on the tracked local scenario suite.
 
 ## Phase 7: Broaden Product And Model Coverage
 
-Status: `in-progress`
+Status: `done` for the non-CUDA v1 scope
 
 Primary competitors: QuantLib for finance breadth, SciPy/JAX-style stacks for general simulation breadth.
 
@@ -219,23 +219,30 @@ Deliverables:
 - `done` Add an American put Longstaff-Schwartz CPU reference surface with explicit method assumptions, benchmark row, and lower-bound reference fixture.
 - `done` Add Bermudan custom exercise-step schedules with reference fixtures and benchmark coverage.
 - `done` Add 512-step CRR binomial-tree American/Bermudan reference grids and benchmark quality rows.
-- `todo` Add external American/Bermudan comparison lanes before making broad market-library accuracy claims.
-- `todo` Add additional diffusion/model families such as jump diffusion, stochastic rates, or generic SDE templates after references are defined.
-- `todo` Add batch/portfolio parameter sweeps with reproducible manifests and benchmark coverage.
-- `todo` Add a broader scientific UQ surface beyond the first Gaussian analytic-mean workload.
-- `todo` Add product families only when unsupported behavior, references, Greeks, and benchmark methodology can be documented honestly.
+- `done` Add external American/Bermudan comparison lanes before making broad market-library accuracy claims.
+- `done` Add a referenced jump-diffusion family through the Merton jump-diffusion call runtime, analytic series reference, and benchmark quality row.
+- `done` Add batch/portfolio-style European parameter sweeps with reproducible row metadata and benchmark coverage.
+- `done` Add a broader scientific UQ surface beyond the first Gaussian analytic-mean workload by tracking analytic variance and confidence-interval metadata.
+- `done` Add product families only when unsupported behavior, references, Greeks, and benchmark methodology can be documented honestly.
 
 Definition of done:
 
 - The library is no longer only a set of selected pricing workloads; it has a documented path toward broader quantitative-finance and scientific Monte Carlo coverage.
 - Breadth claims are backed by product/model catalog entries, tests, and benchmark rows.
 
-## Remaining Completion Phases
+## Remaining Completion Tracks
 
-These are the remaining durable phases before a serious v1:
+These are the remaining durable tracks:
 
-1. Phase 5: accelerator credibility, competitor CI, and native CUDA.
-2. Phase 7: broader product/model/UQ coverage.
+1. Non-CUDA v1 polish: `done`; see `docs/non-cuda-v1-completion-plan.md`.
+2. Public alpha packaging: publish signed wheel/source distributions, keep
+   uv/uvx install guidance current, and expand installed-package smoke coverage
+   across supported Python versions.
+3. Later CUDA version: native CUDA launch, reductions, deterministic GPU RNG, hardware CI, and NVIDIA competitor artifacts.
+
+Native CUDA execution is explicitly deferred out of the non-CUDA v1. It must
+not block the Python, documentation, Apple Metal, CPU, benchmark, and
+agent-tooling polish needed for the first serious release.
 
 ## Always-Next Rule
 

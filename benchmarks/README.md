@@ -17,6 +17,8 @@ From `latest-results.json`:
 - `mc_cpu_arithmetic_asian_call_rust_control_variate`: tracks the arithmetic-Asian CPU control-variate path
 - `mc_cpu_arithmetic_asian_call_rust_mlmc`: tracks the first arithmetic-Asian CPU MLMC path
 - `mc_cpu_arithmetic_asian_call_rust_mlqmc`: tracks the first arithmetic-Asian CPU MLQMC path
+- `mc_cpu_arithmetic_asian_call_rust_mlmc_reference_calibration` and `mc_cpu_arithmetic_asian_call_rust_mlqmc_reference_calibration`: track realized absolute error against a high-budget standard Monte Carlo reference
+- `mc_cpu_european_call_parameter_sweep_rust`: tracks a typed European scenario sweep with per-scenario Black-Scholes accuracy metadata
 - `mc_cpu_european_call_rust_randomized_halton` (`stepwise_paths_randomized_halton`): tracks the first randomized-QMC CPU path
 - `mc_cpu_european_call_rust_randomized_halton_control_variate_quality`: reports `stderr_ratio_vs_standard`
 - `mc_cpu_european_call_rust_latin_hypercube` (`stepwise_paths_latin_hypercube`): tracks the first Latin-hypercube CPU path
@@ -27,6 +29,7 @@ From `latest-results.json`:
 - `mc_cpu_european_call_quantlib` or `mc_cpu_european_call_quantlib_unavailable`: tracks the selected QuantLib-Python `MCEuropeanEngine` competitor lane for the overlapping European workload
 - `mc_cpu_qmc_quality_*`: tracks structured-pricing stderr ratios against pseudorandom baselines across European, arithmetic Asian, down-and-out, lookback, and basket workloads
 - `mc_cpu_gaussian_uncertainty_rust_*`: tracks a non-option Gaussian uncertainty-propagation benchmark with analytic-mean error
+- `mc_cpu_gaussian_uncertainty_moments_rust_latin_hypercube`: tracks analytic-variance error for the Gaussian UQ response
 - structured-sampling benchmarks now cover European, arithmetic Asian, down-and-out, fixed-strike lookback, and two-asset basket CPU workload families
 - `mc_cpu_down_and_out_call_rust` (`down_and_out_stepwise`): tracks the third CPU workload family
 - `mc_cpu_down_and_out_call_rust_control_variate`: tracks the down-and-out CPU control-variate path
@@ -41,6 +44,9 @@ From `latest-results.json`:
 - `mc_cpu_heston_european_call_rust`: tracks the Heston stochastic-volatility European-call CPU workload with full-truncation Euler stepping
 - `mc_cpu_heston_black_scholes_limit_quality`: reports Heston zero-vol-of-vol constant-variance absolute error against the Black-Scholes reference
 - `mc_cpu_heston_european_call_quantlib` or `mc_cpu_heston_european_call_quantlib_unavailable`: tracks the selected QuantLib-Python analytic Heston reference lane
+- `mc_cpu_merton_jump_diffusion_call_rust`: tracks the Merton jump-diffusion European-call CPU workload
+- `mc_cpu_merton_jump_diffusion_reference_quality`: reports absolute error against the Merton analytic series reference
+- `mc_cpu_american_put_lsm_quantlib` / `mc_cpu_bermudan_put_lsm_quantlib` or corresponding unavailable rows: track selected QuantLib-Python early-exercise comparison lanes
 - `mc_cpu_european_call_greeks_*_rust`: tracks bump-and-revalue, pathwise, and likelihood-ratio European-call Greek timing with Black-Scholes Delta error
 - `mc_cpu_heston_greeks_black_scholes_limit_delta_quality`: tracks Heston Black-Scholes-limit bump Greek quality
 - `mc_cpu_all_workload_greeks_bump_rust`: tracks bump-and-revalue Greek breadth across current CPU workload families
@@ -69,6 +75,9 @@ From `release-results.json`:
 - `mc_cpu_arithmetic_asian_call_rust` (`arithmetic_asian_stepwise`): `19.932 ms` per run
 - `mc_cpu_arithmetic_asian_call_rust_mlmc`: `4.544 ms` per run, `stderr_ratio_vs_standard = 2.013`
 - `mc_cpu_arithmetic_asian_call_rust_mlqmc`: `6.064 ms` per run, `stderr_ratio_vs_standard = 0.418`
+- `mc_cpu_arithmetic_asian_call_rust_mlmc_reference_calibration`: `20.134 ms` per run, `abs_error_vs_standard_reference = 0.022778`
+- `mc_cpu_arithmetic_asian_call_rust_mlqmc_reference_calibration`: `23.795 ms` per run, `abs_error_vs_standard_reference = 0.002080`
+- `mc_cpu_european_call_parameter_sweep_rust`: `1.789 ms` per run, `max_abs_error_vs_black_scholes = 0.000479`
 - `mc_cpu_down_and_out_call_rust` (`down_and_out_stepwise`): `16.912 ms` per run
 - `mc_cpu_lookback_call_rust` (`lookback_fixed_strike_stepwise`): `16.531 ms` per run, price `16.671609`
 - `mc_cpu_lookback_call_rust_control_variate` (`lookback_fixed_strike_stepwise_control_variate`): `17.008 ms` per run, price `16.649141`
@@ -79,6 +88,8 @@ From `release-results.json`:
 - `mc_cpu_bermudan_put_lsm_binomial_reference_quality`: `139.226 ms` per run, `abs_error_vs_binomial_reference = 0.019098`
 - `mc_cpu_heston_european_call_rust` (`heston_full_truncation_euler_stepwise`): `25.977 ms` per run, price `9.173258`
 - `mc_cpu_heston_black_scholes_limit_quality`: `abs_error_vs_black_scholes = 0.039572`
+- `mc_cpu_merton_jump_diffusion_call_rust` (`merton_jump_diffusion_terminal_poisson_lognormal`): `0.975 ms` per run, price `11.236386`
+- `mc_cpu_merton_jump_diffusion_reference_quality`: `abs_error_vs_merton_series = 0.010157`
 - `mc_cpu_european_call_greeks_bump_rust`: `3.095 ms` per run, `abs_delta_error_vs_black_scholes = 0.000126`
 - `mc_cpu_european_call_greeks_pathwise_rust`: `1.496 ms` per run, `abs_delta_error_vs_black_scholes = 0.000281`
 - `mc_cpu_european_call_greeks_likelihood_ratio_rust`: `1.382 ms` per run, `abs_delta_error_vs_black_scholes = 0.002631`
@@ -106,6 +117,7 @@ From `release-results.json`:
 - `mc_cpu_qmc_realized_error_european_scrambled_sobol_brownian_bridge`: `abs_error_ratio_vs_pseudorandom = 0.001`
 - `mc_cpu_gaussian_uncertainty_rust_pseudorandom`: `3.219 ms` per run, `abs_error_vs_analytic_mean = 0.006344`
 - `mc_cpu_gaussian_uncertainty_rust_latin_hypercube`: `2.115 ms` per run, `abs_error_vs_analytic_mean = 0.000039`
+- `mc_cpu_gaussian_uncertainty_moments_rust_latin_hypercube`: `2.122 ms` per run, `abs_error_vs_analytic_variance = 0.002484`
 
 ## Competitiveness Output
 

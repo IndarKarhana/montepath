@@ -1,6 +1,6 @@
 import unittest
 
-from mc_library import (
+from montepath import (
     agent_benchmark,
     agent_compare,
     agent_compare_methods,
@@ -24,28 +24,28 @@ class AgentSurfaceTests(unittest.TestCase):
         tool_names = {tool["name"] for tool in manifest["tools"]}
 
         self.assertEqual(manifest["schema_version"], "agent-tools.v1")
-        self.assertIn("mc.validate", tool_names)
-        self.assertIn("mc.recommend", tool_names)
-        self.assertIn("mc.plan", tool_names)
-        self.assertIn("mc.execute", tool_names)
-        self.assertIn("mc.compare", tool_names)
-        self.assertIn("mc.benchmark", tool_names)
-        self.assertIn("mc.reproduce", tool_names)
-        self.assertIn("mc.planner_evidence", tool_names)
-        self.assertIn("mc.cost_frontier", tool_names)
-        self.assertIn("mc.compare_methods", tool_names)
-        self.assertIn("mc.why_not_faster", tool_names)
-        self.assertIn("mc.mlmc_calibration", tool_names)
+        self.assertIn("montepath.validate", tool_names)
+        self.assertIn("montepath.recommend", tool_names)
+        self.assertIn("montepath.plan", tool_names)
+        self.assertIn("montepath.execute", tool_names)
+        self.assertIn("montepath.compare", tool_names)
+        self.assertIn("montepath.benchmark", tool_names)
+        self.assertIn("montepath.reproduce", tool_names)
+        self.assertIn("montepath.planner_evidence", tool_names)
+        self.assertIn("montepath.cost_frontier", tool_names)
+        self.assertIn("montepath.compare_methods", tool_names)
+        self.assertIn("montepath.why_not_faster", tool_names)
+        self.assertIn("montepath.mlmc_calibration", tool_names)
 
     def test_json_schema_export_contains_execute_contract(self) -> None:
         schemas = export_json_schemas()
 
-        self.assertIn("mc.execute.request", schemas)
-        self.assertIn("mc.execute.response", schemas)
-        self.assertIn("mc.compare_methods.request", schemas)
-        self.assertIn("mc.why_not_faster.request", schemas)
-        self.assertEqual(schemas["mc.execute.request"]["type"], "object")
-        self.assertIn("workload", schemas["mc.execute.request"]["required"])
+        self.assertIn("montepath.execute.request", schemas)
+        self.assertIn("montepath.execute.response", schemas)
+        self.assertIn("montepath.compare_methods.request", schemas)
+        self.assertIn("montepath.why_not_faster.request", schemas)
+        self.assertEqual(schemas["montepath.execute.request"]["type"], "object")
+        self.assertIn("workload", schemas["montepath.execute.request"]["required"])
 
     def test_validate_reports_supported_and_unsupported_states(self) -> None:
         ok = agent_validate({"workload": "european_call", "config": {"n_paths": 128}})

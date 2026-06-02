@@ -2,7 +2,7 @@
 
 ## Goal
 
-Benchmark against best-in-class libraries and keep `mc-library` at or above competitive performance on target workloads.
+Benchmark against best-in-class libraries and keep `montepath` at or above competitive performance on target workloads.
 
 ## Baseline Competitor Set
 
@@ -13,7 +13,7 @@ Benchmark against best-in-class libraries and keep `mc-library` at or above comp
 ## Policy Rules
 
 1. Every benchmark cycle must run internal runtime benchmarks plus competitor benchmarks.
-2. If `mc-library` is slower than an available competitor, a written improvement plan must be generated in the same run.
+2. If `montepath` is slower than an available competitor, a written improvement plan must be generated in the same run.
 3. Benchmark artifacts must be committed for traceability (`benchmarks/latest-results.json`, `benchmarks/improvement-plan.md`).
 4. "Unavailable" competitor results must be explicit in the report (never silently skipped).
 
@@ -36,5 +36,5 @@ Competitor environment manifests are stored under
 
 For each tracked workload where competitor baseline is available:
 
-- preferred: `mc-library` runtime <= fastest competitor runtime
-- acceptable temporary state: `mc-library` slower, but actionable plan generated and tracked in roadmap
+- preferred: `montepath` runtime <= fastest competitor runtime
+- acceptable temporary state: `montepath` slower, but actionable plan generated and tracked in roadmap

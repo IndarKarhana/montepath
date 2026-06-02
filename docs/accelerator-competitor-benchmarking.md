@@ -66,6 +66,5 @@ run produced the artifact.
 ## Current Limitation
 
 These competitor rows are accelerator baselines, not native CUDA support for
-`mc-library`. Native CUDA remains deferred until CUDA kernels, reductions, RNG
+`montepath`. Native CUDA remains deferred until CUDA kernels, reductions, RNG
 stream partitioning, and hardware CI are implemented and measured.
-

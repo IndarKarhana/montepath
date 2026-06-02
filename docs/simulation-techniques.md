@@ -147,7 +147,9 @@ Planned direction:
 Status:
 
 - supported now as a focused CPU benchmark through `gaussian_uncertainty_mean_cpu`
+- analytic moment reporting is available through `gaussian_uncertainty_moments_cpu`
 - tracked with analytic-mean absolute error across pseudorandom, randomized Halton, Latin hypercube, and scrambled Sobol sampling
+- tracked with analytic-variance absolute error for the Latin-hypercube moment row
 
 Why it matters:
 
@@ -156,7 +158,7 @@ Why it matters:
 
 Practical notes:
 
-- current benchmark is intentionally narrow and analytic-reference-backed
+- current benchmark is intentionally narrow and analytic-reference-backed for both mean and variance
 - use it as the first UQ quality signal, not as a general UQ modeling interface
 
 ### 0.25. European Realized-Error QMC Validation
@@ -298,7 +300,8 @@ Status:
 - supported now as a CPU reference path for arithmetic Asian calls
 - benchmarked as the first multilevel foundation
 - includes pilot-based level/path allocation tuning
-- still needs adaptive reruns and broader workload support
+- includes realized-error calibration against a high-budget standard Monte Carlo reference
+- still needs broader workload support beyond the arithmetic Asian reference path
 
 Why it matters:
 
@@ -312,6 +315,7 @@ Current implementation:
 - deterministic coupled fine/coarse Brownian increments
 - explicit `ArithmeticAsianMlmcConfig` with base steps, level count, refinement factor, paths per level, seed, sampling, and scramble replicates
 - `tune_arithmetic_asian_mlmc_allocation_cpu` for pilot-variance path allocation under a target step-update budget
+- `compare_arithmetic_asian_mlmc_reference_cpu` for realized-error calibration against a standard Monte Carlo reference
 - structured per-level output with means, variances, standard errors, path counts, and step-update cost
 
 Practical notes:
@@ -332,6 +336,7 @@ Status:
 
 - supported now as a CPU reference path for arithmetic Asian calls using scrambled Sobol increments
 - supports replicated scrambling through `scramble_replicates`
+- includes realized-error calibration against a high-budget standard Monte Carlo reference
 - still early because replicated scrambling and tolerance planning are available only for the arithmetic Asian CPU reference surface
 
 Why it matters:

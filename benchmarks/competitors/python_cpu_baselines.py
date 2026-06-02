@@ -714,6 +714,154 @@ def benchmark_quantlib_heston_european(
     )
 
 
+def _quantlib_black_scholes_process(ql: Any) -> tuple[Any, Any, Any]:
+    calendar = ql.NullCalendar()
+    day_count = ql.Actual365Fixed()
+    evaluation_date = ql.Date(2, ql.January, 2023)
+    maturity_date = ql.Date(2, ql.January, 2024)
+    ql.Settings.instance().evaluationDate = evaluation_date
+
+    spot = ql.QuoteHandle(ql.SimpleQuote(100.0))
+    dividend_curve = ql.YieldTermStructureHandle(
+        ql.FlatForward(evaluation_date, 0.0, day_count)
+    )
+    risk_free_curve = ql.YieldTermStructureHandle(
+        ql.FlatForward(evaluation_date, 0.03, day_count)
+    )
+    volatility = ql.BlackVolTermStructureHandle(
+        ql.BlackConstantVol(evaluation_date, calendar, 0.2, day_count)
+    )
+    process = ql.BlackScholesMertonProcess(
+        spot, dividend_curve, risk_free_curve, volatility
+    )
+    return process, evaluation_date, maturity_date
+
+
+def benchmark_quantlib_american_put_lsm(
+    n_paths: int, n_steps: int, repeats: int, seed: int
+) -> LibraryResult:
+    import QuantLib as ql
+
+    process, evaluation_date, maturity_date = _quantlib_black_scholes_process(ql)
+    payoff = ql.PlainVanillaPayoff(ql.Option.Put, 100.0)
+    exercise = ql.AmericanExercise(evaluation_date, maturity_date)
+
+    times: list[float] = []
+    prices: list[float] = []
+    stderrs: list[float] = []
+
+    for rep in range(repeats):
+        option = ql.VanillaOption(payoff, exercise)
+
+        start = time.perf_counter()
+        engine = ql.MCAmericanEngine(
+            process,
+            "pseudorandom",
+            timeSteps=n_steps,
+            requiredSamples=n_paths,
+            seed=seed + rep,
+            polynomOrder=2,
+            polynomType=0,
+            nCalibrationSamples=max(16, min(2048, n_paths)),
+        )
+        option.setPricingEngine(engine)
+        price = float(option.NPV())
+        elapsed = (time.perf_counter() - start) * 1000.0
+
+        try:
+            stderr = float(option.errorEstimate())
+        except RuntimeError:
+            stderr = math.nan
+
+        times.append(elapsed)
+        prices.append(price)
+        if math.isfinite(stderr):
+            stderrs.append(stderr)
+
+    return LibraryResult(
+        library="quantlib",
+        methodology="american_put_lsm_quantlib_mc",
+        available=True,
+        runtime_ms=sum(times) / len(times),
+        price=sum(prices) / len(prices),
+        stderr=(sum(stderrs) / len(stderrs)) if stderrs else None,
+        note=(
+            "QuantLib-Python MCAmericanEngine with pseudorandom Longstaff-Schwartz "
+            "Monte Carlo under the same flat Black-Scholes inputs."
+        ),
+        reproducibility=(
+            "statistical reproducibility for fixed seed and QuantLib-Python build; "
+            "exact path identity with montepath is not expected"
+        ),
+    )
+
+
+def benchmark_quantlib_bermudan_put_lsm(
+    n_paths: int, n_steps: int, repeats: int, seed: int
+) -> LibraryResult:
+    import QuantLib as ql
+
+    process, _evaluation_date, maturity_date = _quantlib_black_scholes_process(ql)
+    payoff = ql.PlainVanillaPayoff(ql.Option.Put, 100.0)
+    exercise = ql.BermudanExercise(
+        [
+            ql.Date(2, ql.April, 2023),
+            ql.Date(2, ql.July, 2023),
+            ql.Date(2, ql.October, 2023),
+            maturity_date,
+        ]
+    )
+
+    times: list[float] = []
+    prices: list[float] = []
+    stderrs: list[float] = []
+
+    for rep in range(repeats):
+        option = ql.VanillaOption(payoff, exercise)
+
+        start = time.perf_counter()
+        engine = ql.MCAmericanEngine(
+            process,
+            "pseudorandom",
+            timeSteps=n_steps,
+            requiredSamples=n_paths,
+            seed=seed + rep,
+            polynomOrder=2,
+            polynomType=0,
+            nCalibrationSamples=max(16, min(2048, n_paths)),
+        )
+        option.setPricingEngine(engine)
+        price = float(option.NPV())
+        elapsed = (time.perf_counter() - start) * 1000.0
+
+        try:
+            stderr = float(option.errorEstimate())
+        except RuntimeError:
+            stderr = math.nan
+
+        times.append(elapsed)
+        prices.append(price)
+        if math.isfinite(stderr):
+            stderrs.append(stderr)
+
+    return LibraryResult(
+        library="quantlib",
+        methodology="bermudan_put_lsm_quantlib_mc",
+        available=True,
+        runtime_ms=sum(times) / len(times),
+        price=sum(prices) / len(prices),
+        stderr=(sum(stderrs) / len(stderrs)) if stderrs else None,
+        note=(
+            "QuantLib-Python MCAmericanEngine applied to a quarterly Bermudan "
+            "exercise schedule matching the tracked montepath fixture."
+        ),
+        reproducibility=(
+            "statistical reproducibility for fixed seed and QuantLib-Python build; "
+            "exercise-date calendar discretization differs from simulation-step indices"
+        ),
+    )
+
+
 def unavailable(
     name: str,
     methodology: str | None,
@@ -806,11 +954,53 @@ def main() -> int:
                     f"benchmark failed: {type(exc).__name__}: {exc}",
                 )
             )
+        try:
+            results.append(
+                benchmark_quantlib_american_put_lsm(
+                    args.paths, args.steps, args.repeats, args.seed
+                )
+            )
+        except Exception as exc:
+            results.append(
+                unavailable(
+                    "quantlib",
+                    "american_put_lsm_quantlib_mc",
+                    f"benchmark failed: {type(exc).__name__}: {exc}",
+                )
+            )
+        try:
+            results.append(
+                benchmark_quantlib_bermudan_put_lsm(
+                    args.paths, args.steps, args.repeats, args.seed
+                )
+            )
+        except Exception as exc:
+            results.append(
+                unavailable(
+                    "quantlib",
+                    "bermudan_put_lsm_quantlib_mc",
+                    f"benchmark failed: {type(exc).__name__}: {exc}",
+                )
+            )
     else:
         results.append(
             unavailable(
                 "quantlib",
                 "stepwise_paths_quantlib_mceuropean",
+                "QuantLib-Python package not installed",
+            )
+        )
+        results.append(
+            unavailable(
+                "quantlib",
+                "american_put_lsm_quantlib_mc",
+                "QuantLib-Python package not installed",
+            )
+        )
+        results.append(
+            unavailable(
+                "quantlib",
+                "bermudan_put_lsm_quantlib_mc",
                 "QuantLib-Python package not installed",
             )
         )

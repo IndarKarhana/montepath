@@ -2,6 +2,18 @@
 
 ## 0.1.0
 
+- Renamed the public package, import surface, native module, and MCP command to
+  MontePath: `montepath`, `montepath._native`, and `montepath-mcp`.
+- Packaged the public alpha positioning for users and LLM agents.
+- Added Rust-backed Python CPU extension packaging through `montepath._native`.
+- Added `montepath-mcp`, a dependency-free MCP-compatible stdio server for
+  the agent tool surface.
+- Added uv/uvx install and agent launch guidance.
+- Added installed wheel/source distribution smoke tests for native extension
+  and MCP availability.
+- Scoped Clippy enforcement in CI to warning-clean crates while documenting
+  remaining `mc-core` hot-path lint debt.
+- Refreshed release benchmark artifacts and competitiveness improvement plan.
 - Added Python-first method recommendation and benchmark helper surfaces.
 - Added Python-first pricing helpers for European, arithmetic Asian, and
   down-and-out calls.

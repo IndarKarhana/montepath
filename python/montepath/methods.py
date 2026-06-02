@@ -1,7 +1,7 @@
 """Typed method recommendation helpers.
 
 These mirror the Rust planner surface for early Python users and agents. The
-implementation is intentionally dependency-free until compiled bindings land.
+implementation is intentionally dependency-free until planner bindings land.
 """
 
 from __future__ import annotations

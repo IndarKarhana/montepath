@@ -224,6 +224,56 @@
       "notes": [
         "Expectation is E[z_0^2] + 0.5 E[z_1] + E[exp(0.1 z_2)] = 1 + exp(0.005)."
       ]
+    },
+    {
+      "fixture_id": "merton_jump_diffusion_call_series_reference",
+      "workload_id": "merton_jump_diffusion_call",
+      "reference_source": "merton_lognormal_jump_diffusion_series",
+      "runtime_reference_surface": "merton_jump_diffusion_call_reference_price",
+      "comparison_metric": "absolute_price_error",
+      "parameters": {
+        "spot": 100.0,
+        "strike": 100.0,
+        "rate": 0.03,
+        "diffusion_volatility": 0.2,
+        "jump_intensity": 0.4,
+        "jump_mean": -0.08,
+        "jump_volatility": 0.25,
+        "maturity_years": 1.0,
+        "max_series_terms": 96,
+        "tail_tolerance": 1e-12
+      },
+      "expected": {
+        "price": 11.223920057389265
+      },
+      "tolerance_guidance": {
+        "unit": "stderr_units",
+        "recommended_max": 4.0
+      },
+      "notes": [
+        "Reference is the risk-neutral Merton mixture over conditional lognormal terminal distributions."
+      ]
+    },
+    {
+      "fixture_id": "gaussian_uncertainty_moment_reference",
+      "workload_id": "gaussian_uncertainty_mean",
+      "reference_source": "analytic_moments_under_independent_standard_normals",
+      "runtime_reference_surface": "gaussian_uncertainty_moments_cpu",
+      "comparison_metric": "absolute_mean_and_variance_error",
+      "parameters": {
+        "response": "z_0^2 + 0.5 z_1 + exp(0.1 z_2)",
+        "minimum_dimensions": 3
+      },
+      "expected": {
+        "analytic_mean": 2.0050125208594007,
+        "analytic_variance": 2.260151172942588
+      },
+      "tolerance_guidance": {
+        "variance_abs_error_release_gate": 0.05
+      },
+      "notes": [
+        "Variance is Var[z_0^2] + Var[0.5 z_1] + Var[exp(0.1 z_2)] under independence."
+      ]
     }
   ],
   "explicit_caveats": [

@@ -130,7 +130,7 @@ Suggested API styles:
 Example conceptual API:
 
 ```python
-sim = mc.Simulation("barrier_option") \
+sim = montepath.Simulation("barrier_option") \
     .parameters(S0=100.0, sigma=0.2, r=0.03, T=1.0) \
     .random("z", dist="normal", shape=(n_steps,)) \
     .state("price", init="S0") \
@@ -858,7 +858,7 @@ These are the concrete recommendations I would lock in now:
 ## 23. Proposed Repository Structure
 
 ```text
-mc-library/
+montepath/
   docs/
     architecture-plan.md
     schema-draft.md
@@ -868,7 +868,7 @@ mc-library/
     mc-core/
     mc-schema/
     mc-cpu/
-    mc-python/
+    montepath-python/
   backends/
     mc-cuda/
     mc-metal/

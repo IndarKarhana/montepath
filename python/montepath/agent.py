@@ -1,4 +1,4 @@
-"""Agent-safe tool surfaces for mc-library.
+"""Agent-safe tool surfaces for montepath.
 
 The functions in this module accept and return JSON-serializable dictionaries.
 They avoid hidden global state, keep unsupported behavior explicit, and attach
@@ -47,93 +47,93 @@ def agent_tool_manifest() -> dict[str, Any]:
 
     tools = [
         _tool(
-            "mc.validate",
+            "montepath.validate",
             "Validate a supported workload request without running simulation.",
-            "mc.validate.request",
-            "mc.validate.response",
+            "montepath.validate.request",
+            "montepath.validate.response",
             deterministic=True,
         ),
         _tool(
-            "mc.recommend",
+            "montepath.recommend",
             "Recommend a method, sampling policy, and variance-reduction technique.",
-            "mc.recommend.request",
-            "mc.recommend.response",
+            "montepath.recommend.request",
+            "montepath.recommend.response",
             deterministic=True,
         ),
         _tool(
-            "mc.plan",
+            "montepath.plan",
             "Build a deterministic dry-run execution plan with cost and caveat metadata.",
-            "mc.plan.request",
-            "mc.plan.response",
+            "montepath.plan.request",
+            "montepath.plan.response",
             deterministic=True,
         ),
         _tool(
-            "mc.execute",
+            "montepath.execute",
             "Execute a narrow Python reference workload with reproducibility metadata.",
-            "mc.execute.request",
-            "mc.execute.response",
+            "montepath.execute.request",
+            "montepath.execute.response",
             deterministic=True,
         ),
         _tool(
-            "mc.compare",
+            "montepath.compare",
             "Compare fast and accuracy-oriented method choices for a workload.",
-            "mc.compare.request",
-            "mc.compare.response",
+            "montepath.compare.request",
+            "montepath.compare.response",
             deterministic=True,
         ),
         _tool(
-            "mc.benchmark",
+            "montepath.benchmark",
             "Return benchmark command metadata by default, or run benchmarks when explicitly requested.",
-            "mc.benchmark.request",
-            "mc.benchmark.response",
+            "montepath.benchmark.request",
+            "montepath.benchmark.response",
             deterministic=False,
         ),
         _tool(
-            "mc.reproduce",
+            "montepath.reproduce",
             "Create a reproduction recipe from an agent run manifest.",
-            "mc.reproduce.request",
-            "mc.reproduce.response",
+            "montepath.reproduce.request",
+            "montepath.reproduce.response",
             deterministic=True,
         ),
         _tool(
-            "mc.planner_evidence",
+            "montepath.planner_evidence",
             "Load benchmark-backed planner evidence, winner records, and fixture references.",
-            "mc.planner_evidence.request",
-            "mc.planner_evidence.response",
+            "montepath.planner_evidence.request",
+            "montepath.planner_evidence.response",
             deterministic=True,
         ),
         _tool(
-            "mc.cost_frontier",
+            "montepath.cost_frontier",
             "Return the measured method/backend cost frontier for a workload.",
-            "mc.cost_frontier.request",
-            "mc.cost_frontier.response",
+            "montepath.cost_frontier.request",
+            "montepath.cost_frontier.response",
             deterministic=True,
         ),
         _tool(
-            "mc.compare_methods",
+            "montepath.compare_methods",
             "Compare measured method/runtime tradeoffs for a workload.",
-            "mc.compare_methods.request",
-            "mc.compare_methods.response",
+            "montepath.compare_methods.request",
+            "montepath.compare_methods.response",
             deterministic=True,
         ),
         _tool(
-            "mc.why_not_faster",
+            "montepath.why_not_faster",
             "Explain why a requested method is not the current measured recommendation.",
-            "mc.why_not_faster.request",
-            "mc.why_not_faster.response",
+            "montepath.why_not_faster.request",
+            "montepath.why_not_faster.response",
             deterministic=True,
         ),
         _tool(
-            "mc.mlmc_calibration",
+            "montepath.mlmc_calibration",
             "Report estimated-vs-realized MLMC and MLQMC error calibration evidence.",
-            "mc.mlmc_calibration.request",
-            "mc.mlmc_calibration.response",
+            "montepath.mlmc_calibration.request",
+            "montepath.mlmc_calibration.response",
             deterministic=True,
         ),
     ]
     return {
         "schema_version": "agent-tools.v1",
-        "package": "mc_library",
+        "package": "montepath",
         "tools": tools,
     }
 
@@ -192,32 +192,32 @@ def export_json_schemas() -> dict[str, dict[str, Any]]:
     }
 
     schemas = {
-        "mc.validate.request": request_schema,
-        "mc.validate.response": response_schema,
-        "mc.recommend.request": request_schema,
-        "mc.recommend.response": response_schema,
-        "mc.plan.request": request_schema,
-        "mc.plan.response": response_schema,
-        "mc.execute.request": request_schema,
-        "mc.execute.response": response_schema,
-        "mc.compare.request": request_schema,
-        "mc.compare.response": response_schema,
-        "mc.benchmark.request": benchmark_request_schema,
-        "mc.benchmark.response": response_schema,
-        "mc.reproduce.request": {
+        "montepath.validate.request": request_schema,
+        "montepath.validate.response": response_schema,
+        "montepath.recommend.request": request_schema,
+        "montepath.recommend.response": response_schema,
+        "montepath.plan.request": request_schema,
+        "montepath.plan.response": response_schema,
+        "montepath.execute.request": request_schema,
+        "montepath.execute.response": response_schema,
+        "montepath.compare.request": request_schema,
+        "montepath.compare.response": response_schema,
+        "montepath.benchmark.request": benchmark_request_schema,
+        "montepath.benchmark.response": response_schema,
+        "montepath.reproduce.request": {
             "type": "object",
             "required": ["manifest"],
             "properties": {"manifest": _manifest_schema()},
             "additionalProperties": False,
         },
-        "mc.reproduce.response": response_schema,
-        "mc.planner_evidence.request": planner_artifact_schema,
-        "mc.planner_evidence.response": response_schema,
-        "mc.cost_frontier.request": planner_workload_schema,
-        "mc.cost_frontier.response": response_schema,
-        "mc.compare_methods.request": planner_workload_schema,
-        "mc.compare_methods.response": response_schema,
-        "mc.why_not_faster.request": {
+        "montepath.reproduce.response": response_schema,
+        "montepath.planner_evidence.request": planner_artifact_schema,
+        "montepath.planner_evidence.response": response_schema,
+        "montepath.cost_frontier.request": planner_workload_schema,
+        "montepath.cost_frontier.response": response_schema,
+        "montepath.compare_methods.request": planner_workload_schema,
+        "montepath.compare_methods.response": response_schema,
+        "montepath.why_not_faster.request": {
             "type": "object",
             "required": ["workload", "method_id"],
             "properties": {
@@ -228,8 +228,8 @@ def export_json_schemas() -> dict[str, dict[str, Any]]:
             },
             "additionalProperties": False,
         },
-        "mc.why_not_faster.response": response_schema,
-        "mc.mlmc_calibration.request": {
+        "montepath.why_not_faster.response": response_schema,
+        "montepath.mlmc_calibration.request": {
             "type": "object",
             "properties": {
                 "workload": {"type": "string"},
@@ -238,7 +238,7 @@ def export_json_schemas() -> dict[str, dict[str, Any]]:
             },
             "additionalProperties": False,
         },
-        "mc.mlmc_calibration.response": response_schema,
+        "montepath.mlmc_calibration.response": response_schema,
     }
     return schemas
 
@@ -252,7 +252,7 @@ def agent_validate(request: Mapping[str, Any]) -> dict[str, Any]:
         "ok": ok,
         "diagnostics": diagnostics,
         "manifest": _agent_manifest(
-            tool="mc.validate",
+            tool="montepath.validate",
             workload=workload or "unknown",
             config=config,
             method="validation_only",
@@ -282,7 +282,7 @@ def agent_recommend(request: Mapping[str, Any]) -> dict[str, Any]:
         "ok": True,
         "recommendation": asdict(recommendation),
         "manifest": _agent_manifest(
-            tool="mc.recommend",
+            tool="montepath.recommend",
             workload=workload,
             config=config,
             method=recommendation.method_id,
@@ -321,7 +321,7 @@ def agent_plan(request: Mapping[str, Any]) -> dict[str, Any]:
         "ok": True,
         "plan": plan,
         "manifest": _agent_manifest(
-            tool="mc.plan",
+            tool="montepath.plan",
             workload=workload,
             config=config,
             method=recommendation["method_id"],
@@ -365,10 +365,10 @@ def agent_execute(request: Mapping[str, Any]) -> dict[str, Any]:
         else:
             raise AssertionError("validated workload should be supported")
     except McConfigurationError as exc:
-        return _error_response("mc.execute", workload, config, exc)
+        return _error_response("montepath.execute", workload, config, exc)
 
     manifest = _agent_manifest(
-        tool="mc.execute",
+        tool="montepath.execute",
         workload=workload,
         config=config,
         method="python_reference",
@@ -419,7 +419,7 @@ def agent_compare(request: Mapping[str, Any]) -> dict[str, Any]:
         "ok": True,
         "alternatives": alternatives,
         "manifest": _agent_manifest(
-            tool="mc.compare",
+            tool="montepath.compare",
             workload=workload,
             config=config,
             method="method_comparison",
@@ -438,7 +438,7 @@ def agent_benchmark(request: Mapping[str, Any] | None = None) -> dict[str, Any]:
     repo_root = str(payload.get("repo_root", "."))
     command = _benchmark_command(profile, release)
     manifest = _agent_manifest(
-        tool="mc.benchmark",
+        tool="montepath.benchmark",
         workload="benchmark_suite",
         config={"profile": profile, "release": release, "execute": execute},
         method="benchmark_harness",
@@ -481,11 +481,11 @@ def agent_reproduce(request: Mapping[str, Any]) -> dict[str, Any]:
                 {
                     "code": "MC_AGENT_REPRODUCE_UNSUPPORTED",
                     "message": f"Cannot reproduce workload {workload!r}",
-                    "suggestion": "Pass a manifest produced by mc.execute for a supported workload.",
+                    "suggestion": "Pass a manifest produced by montepath.execute for a supported workload.",
                 }
             ],
             "manifest": _agent_manifest(
-                tool="mc.reproduce",
+                tool="montepath.reproduce",
                 workload=workload or "unknown",
                 config=config,
                 method="reproduce",
@@ -496,14 +496,14 @@ def agent_reproduce(request: Mapping[str, Any]) -> dict[str, Any]:
         "ok": True,
         "reproduction": {
             "python": (
-                f"from mc_library import {helper}\n"
+                f"from montepath import {helper}\n"
                 f"result = {helper}(**{config!r})\n"
                 "print(result)\n"
             ),
             "manifest": manifest,
         },
         "manifest": _agent_manifest(
-            tool="mc.reproduce",
+            tool="montepath.reproduce",
             workload=workload,
             config=config,
             method="reproduce",
@@ -516,7 +516,7 @@ def agent_planner_evidence(request: Mapping[str, Any] | None = None) -> dict[str
     payload = dict(request or {})
     evidence = load_planner_evidence(**_artifact_kwargs(payload))
     return _planner_response(
-        tool="mc.planner_evidence",
+        tool="montepath.planner_evidence",
         workload="planner_evidence",
         result=evidence,
         method="planner_evidence",
@@ -528,7 +528,7 @@ def agent_cost_frontier(request: Mapping[str, Any]) -> dict[str, Any]:
     workload = str(request.get("workload", ""))
     result = cost_frontier(workload, **_artifact_kwargs(request))
     return _planner_response(
-        tool="mc.cost_frontier",
+        tool="montepath.cost_frontier",
         workload=workload,
         result=result,
         method="cost_frontier",
@@ -539,7 +539,7 @@ def agent_compare_methods(request: Mapping[str, Any]) -> dict[str, Any]:
     workload = str(request.get("workload", ""))
     result = compare_methods(workload, **_artifact_kwargs(request))
     return _planner_response(
-        tool="mc.compare_methods",
+        tool="montepath.compare_methods",
         workload=workload,
         result=result,
         method=result.get("recommended", {}).get("method_id", "method_comparison"),
@@ -551,7 +551,7 @@ def agent_why_not_faster(request: Mapping[str, Any]) -> dict[str, Any]:
     method_id = str(request.get("method_id", ""))
     result = why_not_faster(workload, method_id=method_id, **_artifact_kwargs(request))
     return _planner_response(
-        tool="mc.why_not_faster",
+        tool="montepath.why_not_faster",
         workload=workload,
         result=result,
         method=method_id or "unknown",
@@ -563,7 +563,7 @@ def agent_mlmc_calibration(request: Mapping[str, Any] | None = None) -> dict[str
     workload = str(payload.get("workload", "arithmetic_asian_call"))
     result = mlmc_error_calibration(workload, **_artifact_kwargs(payload))
     return _planner_response(
-        tool="mc.mlmc_calibration",
+        tool="montepath.mlmc_calibration",
         workload=workload,
         result=result,
         method="mlmc_error_calibration",
@@ -803,7 +803,7 @@ def _agent_manifest(
         "estimator": estimator,
         "config": dict(config),
         "build": {
-            "package": "mc_library",
+            "package": "montepath",
             "version": _package_version(),
             "python": sys.version.split()[0],
         },
@@ -820,7 +820,7 @@ def _agent_manifest(
 
 def _package_version() -> str:
     try:
-        return metadata.version("mc-library")
+        return metadata.version("montepath")
     except metadata.PackageNotFoundError:
         return "editable-or-source-tree"
 

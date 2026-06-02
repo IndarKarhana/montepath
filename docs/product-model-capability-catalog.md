@@ -21,7 +21,8 @@ execution semantics are explicit and reproducible.
 | Bermudan put | GBM / Black-Scholes | supported CPU reference: Longstaff-Schwartz custom schedule | not yet native | staged, not native execution | CRR binomial tree plus European put lower bound; external LSM comparisons pending | none |
 | Two-asset basket call | correlated GBM | supported | not yet native | staged, not native execution | no trusted fixture yet | none |
 | Heston European call | full-truncation Euler Heston | supported | not yet native | staged, not native execution | Black-Scholes limit fixture | `mc_cpu_heston_european_call_quantlib` |
-| Gaussian UQ mean | independent standard normals | supported | not yet native | staged, not native execution | analytic mean | none |
+| Merton jump-diffusion call | Poisson lognormal jumps | supported | not yet native | staged, not native execution | Merton analytic series | none |
+| Gaussian UQ moments | independent standard normals | supported | not yet native | staged, not native execution | analytic mean and variance | none |
 
 ## Greek Estimator Matrix
 
@@ -35,7 +36,8 @@ execution semantics are explicit and reproducible.
 | Bermudan put GBM | unsupported | unsupported | unsupported | LSM pricing only; Greeks not exposed yet |
 | Two-asset basket call GBM | supported: Delta, Vega, Rho | unsupported | unsupported | no trusted fixture yet |
 | Heston European call | supported: Delta | unsupported | unsupported | Black-Scholes limit fixture |
-| Gaussian UQ mean | not applicable | not applicable | not applicable | analytic mean |
+| Merton jump-diffusion call | unsupported | unsupported | unsupported | Merton analytic series |
+| Gaussian UQ moments | not applicable | not applicable | not applicable | analytic mean and variance |
 
 Unsupported estimators are explicit. They must stay visible to users and agents;
 do not silently substitute bump-and-revalue when a caller asks for pathwise or
@@ -55,7 +57,8 @@ Current trusted references:
 - CRR binomial-tree references for American and quarterly Bermudan put LSM
   quality checks under the same spot, strike, rate, volatility, and maturity.
 - Heston Black-Scholes limit when vol-of-vol is zero and variance is constant.
-- Gaussian UQ analytic mean for `z_0^2 + 0.5 z_1 + exp(0.1 z_2)`.
+- Merton jump-diffusion analytic series reference for the terminal European-call workload.
+- Gaussian UQ analytic mean and variance for `z_0^2 + 0.5 z_1 + exp(0.1 z_2)`.
 
 Explicit caveats:
 
@@ -64,8 +67,9 @@ Explicit caveats:
 - Lookback has a QuantLib Monte Carlo competitor lane, but no committed analytic
   fixture for the current discrete-monitoring setup.
 - American and Bermudan puts have CPU Longstaff-Schwartz execution, a European
-  put lower-bound check, CRR binomial reference grids, and schedule/estimator
-  metadata, but no external market-library early-exercise comparison lane yet.
+  put lower-bound check, CRR binomial reference grids, schedule/estimator
+  metadata, and QuantLib early-exercise benchmark lanes that populate when the
+  installed QuantLib-Python build exposes the required APIs.
 - General Heston analytic comparison is delegated to the QuantLib lane when
   QuantLib-Python is installed; the trusted built-in fixture is the
   Black-Scholes limit.

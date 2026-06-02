@@ -3,6 +3,7 @@ members = [
   "crates/mc-schema",
   "crates/mc-core",
   "crates/mc-bench",
+  "crates/montepath-python",
 ]
 resolver = "2"
 
@@ -10,7 +11,11 @@ resolver = "2"
 edition = "2021"
 license = "MIT"
 version = "0.1.0"
-authors = ["mc-library contributors"]
+authors = ["montepath contributors"]
+description = "Alpha agent-native Monte Carlo runtime components"
+homepage = "https://github.com/IndarKarhana/montepath"
+repository = "https://github.com/IndarKarhana/montepath"
+documentation = "https://github.com/IndarKarhana/montepath/tree/main/docs"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

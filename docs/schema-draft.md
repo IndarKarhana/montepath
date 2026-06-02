@@ -592,7 +592,7 @@ Example:
 ```json
 {
   "extensions": {
-    "mc.experimental.branch_profile_hint": {
+    "montepath.experimental.branch_profile_hint": {
       "estimated_divergence": "medium"
     }
   }

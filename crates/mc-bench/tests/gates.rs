@@ -88,6 +88,24 @@ fn benchmark_gates_hold_for_current_internal_suite() {
         "mc_cpu_european_call_rust_terminal gate failed: expected benchmark presence and positive runtime"
     );
 
+    let parameter_sweep = find_metric("mc_cpu_european_call_parameter_sweep_rust", &report);
+    assert!(
+        parameter_sweep.total_runtime_ms > 0.0,
+        "mc_cpu_european_call_parameter_sweep_rust gate failed: expected benchmark presence and positive runtime"
+    );
+    assert_eq!(
+        parameter_sweep.metric_name.as_deref(),
+        Some("max_abs_error_vs_black_scholes")
+    );
+    let parameter_sweep_abs_error = parameter_sweep
+        .metric_value
+        .expect("European parameter sweep benchmark must contain metric_value");
+    assert!(
+        parameter_sweep_abs_error.is_finite() && parameter_sweep_abs_error < 0.25,
+        "European parameter-sweep gate failed: max_abs_error_vs_black_scholes={} expected<0.25",
+        parameter_sweep_abs_error
+    );
+
     let barrier = find_metric("mc_cpu_down_and_out_call_rust", &report);
     assert!(
         barrier.total_runtime_ms > 0.0,
@@ -173,6 +191,27 @@ fn benchmark_gates_hold_for_current_internal_suite() {
         heston_abs_error
     );
 
+    let merton = find_metric("mc_cpu_merton_jump_diffusion_call_rust", &report);
+    assert!(
+        merton.total_runtime_ms > 0.0,
+        "mc_cpu_merton_jump_diffusion_call_rust gate failed: expected benchmark presence and positive runtime"
+    );
+    assert_eq!(merton.metric_name.as_deref(), Some("price_estimate"));
+
+    let merton_quality = find_metric("mc_cpu_merton_jump_diffusion_reference_quality", &report);
+    assert_eq!(
+        merton_quality.metric_name.as_deref(),
+        Some("abs_error_vs_merton_series")
+    );
+    let merton_abs_error = merton_quality
+        .metric_value
+        .expect("Merton jump-diffusion reference benchmark must contain metric_value");
+    assert!(
+        merton_abs_error.is_finite() && merton_abs_error >= 0.0 && merton_abs_error < 0.5,
+        "Merton jump-diffusion gate failed: abs_error_vs_merton_series={} expected finite in [0, 0.5)",
+        merton_abs_error
+    );
+
     for name in [
         "mc_cpu_european_call_greeks_bump_rust",
         "mc_cpu_european_call_greeks_pathwise_rust",
@@ -219,6 +258,25 @@ fn benchmark_gates_hold_for_current_internal_suite() {
         "randomized halton control-variate quality gate failed: stderr_ratio_vs_standard={} expected<1",
         qmc_stderr_ratio
     );
+
+    for name in [
+        "mc_cpu_arithmetic_asian_call_rust_mlmc_reference_calibration",
+        "mc_cpu_arithmetic_asian_call_rust_mlqmc_reference_calibration",
+    ] {
+        let calibration = find_metric(name, &report);
+        assert_eq!(
+            calibration.metric_name.as_deref(),
+            Some("abs_error_vs_standard_reference")
+        );
+        let abs_error = calibration
+            .metric_value
+            .unwrap_or_else(|| panic!("{name} must contain metric_value"));
+        assert!(
+            abs_error.is_finite() && abs_error < 0.75,
+            "{name} gate failed: abs_error_vs_standard_reference={} expected<0.75",
+            abs_error
+        );
+    }
 
     let lhs = find_metric("mc_cpu_european_call_rust_latin_hypercube", &report);
     assert!(
@@ -297,6 +355,23 @@ fn benchmark_gates_hold_for_current_internal_suite() {
         uq_abs_error < 0.05,
         "Gaussian uncertainty gate failed: abs_error_vs_analytic_mean={} expected<0.05",
         uq_abs_error
+    );
+
+    let uq_moments = find_metric(
+        "mc_cpu_gaussian_uncertainty_moments_rust_latin_hypercube",
+        &report,
+    );
+    assert_eq!(
+        uq_moments.metric_name.as_deref(),
+        Some("abs_error_vs_analytic_variance")
+    );
+    let uq_variance_abs_error = uq_moments
+        .metric_value
+        .expect("Gaussian uncertainty moments benchmark must contain metric_value");
+    assert!(
+        uq_variance_abs_error < 0.05,
+        "Gaussian uncertainty moments gate failed: abs_error_vs_analytic_variance={} expected<0.05",
+        uq_variance_abs_error
     );
 
     let antithetic_quality = find_metric("mc_cpu_european_call_rust_antithetic_quality", &report);

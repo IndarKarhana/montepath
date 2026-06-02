@@ -137,19 +137,21 @@ The pricing-quality comparison rows now cover European, arithmetic Asian, and do
 
 So direct structured-normal generation is now a speed-competitive surface against SciPy QMC on the tracked rows. Moving batched path-level normal filling into pricing cut a large share of the Sobol pricing overhead, but structured pricing still trails the pseudorandom CPU path and needs realized-error studies before it becomes a default speed or convergence recommendation.
 
-### 2. MLMC and MLQMC now have adaptive tolerance planning, but still need broader validation
+### 2. MLMC and MLQMC now have adaptive tolerance planning and first realized-error calibration
 
 Current release results:
 
 - Rust CPU arithmetic Asian step-wise: `16.337 ms`
-- Rust CPU arithmetic Asian MLMC: `4.543 ms`
-- Rust CPU arithmetic Asian MLQMC: `5.971 ms`
+- Rust CPU arithmetic Asian MLMC: `4.308 ms`
+- Rust CPU arithmetic Asian MLQMC: `5.737 ms`
 - arithmetic Asian MLMC stderr ratio vs step-wise: `2.013`
 - arithmetic Asian MLQMC stderr ratio vs step-wise: `0.418`
+- arithmetic Asian MLMC absolute error vs high-budget standard MC reference: `0.022778`
+- arithmetic Asian MLQMC absolute error vs high-budget standard MC reference: `0.002080`
 
-That is a useful multilevel foundation with a real speed signal for MLMC and a strong accuracy signal for replicated MLQMC. The new tolerance solver makes timing and estimator error explicit, but it still needs broader calibration before becoming a default recommendation claim.
+That is a useful multilevel foundation with a real speed signal for MLMC and a strong accuracy signal for replicated MLQMC. The tolerance solver now has artifact-backed realized-error calibration for the arithmetic Asian path; broader workload support remains future work.
 
-### 3. Non-option UQ coverage has started, with a strong structured-sampling signal
+### 3. Non-option UQ coverage now includes analytic mean and variance
 
 The Gaussian uncertainty-propagation benchmark is intentionally small and analytic-reference-backed. Current release results:
 
@@ -157,6 +159,7 @@ The Gaussian uncertainty-propagation benchmark is intentionally small and analyt
 - Rust Gaussian UQ randomized Halton: `5.589 ms`, abs error `0.000056`
 - Rust Gaussian UQ Latin hypercube: `2.086 ms`, abs error `0.000039`
 - Rust Gaussian UQ scrambled Sobol: `6.948 ms`, abs error `0.000043`
+- Rust Gaussian UQ Latin-hypercube moments: `2.122 ms`, variance abs error `0.002484`
 
 This is the clearest current QMC quality win. It is not an option-pricing workload, and it shows why the runtime should keep separate workload classes rather than judging QMC only by path-dependent option standard errors.
 

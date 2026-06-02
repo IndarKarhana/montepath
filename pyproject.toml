@@ -1,30 +1,55 @@
 [project]
-name = "mc-library"
+name = "montepath"
 version = "0.1.0"
-description = "Python-facing helpers for the agent-native Monte Carlo runtime"
+description = "Alpha agent-native Monte Carlo runtime with Rust CPU execution, Python APIs, and MCP tools"
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "montepath contributors" }]
+keywords = [
+    "monte-carlo",
+    "simulation",
+    "quant-finance",
+    "uncertainty-quantification",
+    "mcp",
+    "agents",
+]
 dependencies = []
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Financial and Insurance Industry",
     "Intended Audience :: Science/Research",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Rust",
+    "Topic :: Office/Business :: Financial",
     "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Mathematics",
 ]
+
+[project.urls]
+Homepage = "https://github.com/IndarKarhana/montepath"
+Documentation = "https://github.com/IndarKarhana/montepath/tree/main/docs"
+Repository = "https://github.com/IndarKarhana/montepath"
+Issues = "https://github.com/IndarKarhana/montepath/issues"
+
+[project.scripts]
+montepath-mcp = "montepath.mcp_server:main"
 
 [project.optional-dependencies]
 cpu = []
 metal = []
 cuda = []
-dev = ["build>=1.2", "pytest>=8"]
+dev = ["build>=1.2", "maturin>=1.7,<2", "pytest>=8"]
 
 [build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
 
-[tool.setuptools.packages.find]
-where = ["python"]
-include = ["mc_library*"]
-exclude = ["tests*"]
+[tool.maturin]
+bindings = "pyo3"
+manifest-path = "crates/montepath-python/Cargo.toml"
+module-name = "montepath._native"
+python-source = "python"

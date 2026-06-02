@@ -11,7 +11,7 @@ The goal is for users and agents to answer:
 ## Python Surfaces
 
 ```python
-from mc_library import (
+from montepath import (
     compare_methods,
     cost_frontier,
     load_planner_evidence,
@@ -37,11 +37,11 @@ The same evidence layer is exposed through the agent manifest:
 
 | Tool | Purpose |
 | --- | --- |
-| `mc.planner_evidence` | Load measured planner accuracy, winner records, and reference fixture names. |
-| `mc.cost_frontier` | Return measured runtime rows ranked by cost for a workload. |
-| `mc.compare_methods` | Recommend a measured method/backend tradeoff and list alternatives. |
-| `mc.why_not_faster` | Explain why a requested method is not the current recommendation. |
-| `mc.mlmc_calibration` | Show estimated-vs-realized MLMC/MLQMC error evidence. |
+| `montepath.planner_evidence` | Load measured planner accuracy, winner records, and reference fixture names. |
+| `montepath.cost_frontier` | Return measured runtime rows ranked by cost for a workload. |
+| `montepath.compare_methods` | Recommend a measured method/backend tradeoff and list alternatives. |
+| `montepath.why_not_faster` | Explain why a requested method is not the current recommendation. |
+| `montepath.mlmc_calibration` | Show estimated-vs-realized MLMC/MLQMC error evidence. |
 
 ## Current Planner Accuracy
 
@@ -60,5 +60,5 @@ against Metal wall-clock execution after warmup, so the timing basis is aligned.
 - Native CUDA execution is still deferred, so NVIDIA planner decisions cannot
   yet be called production-calibrated.
 - Structured sampling remains CPU-reference for native GPU backends.
-- MLMC and MLQMC calibration is currently arithmetic-Asian focused.
+- MLMC and MLQMC calibration is currently arithmetic-Asian focused and includes both stderr-ratio evidence and high-budget standard-MC reference absolute-error rows.
 - Release artifacts are evidence records, not universal performance constants.

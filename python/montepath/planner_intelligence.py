@@ -195,17 +195,29 @@ def mlmc_error_calibration(
     results = _load_results(root / benchmark_artifact)
     mlmc_ratio = _metric(results, "mc_cpu_arithmetic_asian_call_rust_mlmc_quality")
     mlqmc_ratio = _metric(results, "mc_cpu_arithmetic_asian_call_rust_mlqmc_quality")
+    mlmc_reference_abs_error = _metric(
+        results, "mc_cpu_arithmetic_asian_call_rust_mlmc_reference_calibration"
+    )
+    mlqmc_reference_abs_error = _metric(
+        results, "mc_cpu_arithmetic_asian_call_rust_mlqmc_reference_calibration"
+    )
     return {
         "schema_version": "planner-mlmc-calibration.v1",
         "workload": workload,
         "benchmark_artifact": benchmark_artifact,
         "estimated_error_source": "adaptive MLMC/MLQMC tolerance planner pilot variances",
-        "realized_error_metric": "stderr_ratio_vs_standard",
+        "realized_error_metric": "stderr_ratio_vs_standard_and_abs_error_vs_standard_reference",
         "mlmc_realized_ratio": mlmc_ratio,
         "mlqmc_realized_ratio": mlqmc_ratio,
+        "mlmc_reference_abs_error": mlmc_reference_abs_error,
+        "mlqmc_reference_abs_error": mlqmc_reference_abs_error,
         "calibration_status": (
             "mlqmc_accuracy_favorable"
-            if mlqmc_ratio is not None and mlqmc_ratio < 1.0
+            if mlqmc_ratio is not None
+            and mlqmc_ratio < 1.0
+            and (
+                mlqmc_reference_abs_error is None or mlqmc_reference_abs_error < 0.75
+            )
             else "needs_more_replicates"
         ),
         "caveats": [

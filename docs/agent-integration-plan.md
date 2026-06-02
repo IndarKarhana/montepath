@@ -64,7 +64,8 @@ Higher-level runtime calls once backend contracts, manifests, and cross-backend 
 2. Add a stable explainability helper around `ExecutionPlan`.
 3. Add a machine-readable run manifest format for runtime outputs.
 4. Add Python-facing wrappers that preserve the same structured semantics.
-5. Add a tool manifest or JSON-schema export for agent wrappers once the public surface stabilizes.
+5. Keep the MCP-compatible server boundary aligned with the public tool
+   manifest, JSON-schema export, execution limits, and version metadata.
 
 Current status:
 
@@ -76,11 +77,12 @@ Current status:
 - `agent-run.v1` manifests attach seed, backend, method, estimator, config,
   build, hardware, warnings, reference, and determinism metadata to wrapper
   outputs
-- The Rust public surfaces are already shaped for future MCP wrapping: configs
-  are typed, results are serializable, warnings are explicit, and benchmark
-  artifacts are machine-readable. Missing MCP work is packaging a stable server
-  process, request/response schemas for each selected tool, authentication and
-  execution limits, and a compatibility/versioning policy.
+- `montepath-mcp` packages the current agent tools behind a dependency-free
+  MCP-compatible stdio server with request/response schemas, execution limits,
+  version metadata, health checks, and structured failure payloads.
+- Remaining agent work is now integration hardening: client-specific examples,
+  broader smoke coverage, authentication or sandbox policy where deployments
+  need it, and compatibility testing against MCP clients.
 
 ## Tool-Readiness Checklist
 

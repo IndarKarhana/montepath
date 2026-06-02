@@ -6,20 +6,24 @@ use mc_core::{
     american_put_price_lsm_cpu, arithmetic_asian_call_price_mc_cpu,
     arithmetic_asian_call_price_mlmc_cpu, basket_call_price_mc_cpu, bermudan_put_price_lsm_cpu,
     black_scholes_european_call_greeks, compare_american_put_lsm_binomial_reference_cpu,
-    compare_arithmetic_asian_sampling_quality_cpu, compare_basket_call_sampling_quality_cpu,
-    compare_bermudan_put_lsm_binomial_reference_cpu, compare_down_and_out_sampling_quality_cpu,
-    compare_european_call_realized_error_cpu, compare_european_call_sampling_quality_cpu,
-    compare_heston_black_scholes_limit_cpu, compare_lookback_call_sampling_quality_cpu,
-    down_and_out_call_price_mc_cpu, european_call_greeks_cpu, european_call_price_mc_cpu_stepwise,
+    compare_arithmetic_asian_mlmc_reference_cpu, compare_arithmetic_asian_sampling_quality_cpu,
+    compare_basket_call_sampling_quality_cpu, compare_bermudan_put_lsm_binomial_reference_cpu,
+    compare_down_and_out_sampling_quality_cpu, compare_european_call_realized_error_cpu,
+    compare_european_call_sampling_quality_cpu, compare_heston_black_scholes_limit_cpu,
+    compare_lookback_call_sampling_quality_cpu, down_and_out_call_price_mc_cpu,
+    european_call_greeks_cpu, european_call_price_mc_cpu_stepwise,
     european_call_price_mc_cpu_terminal, gaussian_uncertainty_mean_cpu,
-    generate_standard_normals_cpu, heston_european_call_greeks_cpu,
-    heston_european_call_price_mc_cpu, lookback_call_price_mc_cpu, plan_execution,
-    price_all_current_greeks_bump_and_revalue_cpu, solve_arithmetic_asian_mlmc_tolerance_cpu,
+    gaussian_uncertainty_moments_cpu, generate_standard_normals_cpu,
+    heston_european_call_greeks_cpu, heston_european_call_price_mc_cpu, lookback_call_price_mc_cpu,
+    merton_jump_diffusion_call_price_mc_cpu, merton_jump_diffusion_call_reference_price,
+    plan_execution, price_all_current_greeks_bump_and_revalue_cpu,
+    price_european_call_parameter_sweep_cpu, solve_arithmetic_asian_mlmc_tolerance_cpu,
     AmericanPutConfig, ArithmeticAsianCallConfig, ArithmeticAsianMlmcConfig,
     ArithmeticAsianMlmcToleranceConfig, BackendId, BackendPreference, BackendSupportReport,
     BasketCallConfig, BermudanPutConfig, DownAndOutCallConfig, EuropeanCallConfig,
+    EuropeanCallMethod, EuropeanCallParameterSweepConfig, EuropeanCallSweepScenario,
     GaussianUncertaintyConfig, Greek, GreekEstimator, HestonEuropeanCallConfig, LookbackCallConfig,
-    MonteCarloTechnique, PlannerMode, RunConfig, SamplingMethod,
+    MertonJumpDiffusionCallConfig, MonteCarloTechnique, PlannerMode, RunConfig, SamplingMethod,
 };
 #[cfg(feature = "metal-native")]
 use mc_core::{
@@ -82,6 +86,7 @@ fn run_full_benchmarks() -> BenchmarkReport {
         benchmark_mc_rust_cpu_stepwise_control_variate(MC_REPEATS),
         benchmark_mc_rust_cpu_stepwise_control_variate_quality(),
         benchmark_mc_rust_cpu_terminal(MC_REPEATS),
+        benchmark_mc_rust_cpu_european_parameter_sweep(MC_REPEATS),
         benchmark_mc_rust_cpu_terminal_antithetic(MC_REPEATS),
         benchmark_mc_rust_cpu_terminal_antithetic_quality(),
         benchmark_mc_rust_cpu_terminal_control_variate(MC_REPEATS),
@@ -91,8 +96,10 @@ fn run_full_benchmarks() -> BenchmarkReport {
         benchmark_mc_rust_cpu_arithmetic_asian_stepwise_control_variate_quality(),
         benchmark_mc_rust_cpu_arithmetic_asian_mlmc(MC_REPEATS),
         benchmark_mc_rust_cpu_arithmetic_asian_mlmc_quality(),
+        benchmark_mc_rust_cpu_arithmetic_asian_mlmc_reference_calibration(),
         benchmark_mc_rust_cpu_arithmetic_asian_mlqmc(MC_REPEATS),
         benchmark_mc_rust_cpu_arithmetic_asian_mlqmc_quality(),
+        benchmark_mc_rust_cpu_arithmetic_asian_mlqmc_reference_calibration(),
         benchmark_mc_rust_cpu_european_call_randomized_halton(MC_REPEATS),
         benchmark_mc_rust_cpu_european_call_randomized_halton_control_variate_quality(),
         benchmark_mc_rust_cpu_european_call_latin_hypercube(MC_REPEATS),
@@ -175,6 +182,8 @@ fn run_full_benchmarks() -> BenchmarkReport {
         benchmark_mc_rust_cpu_bermudan_put_lsm_binomial_reference(),
         benchmark_mc_rust_cpu_heston_european_stepwise(MC_REPEATS),
         benchmark_mc_rust_cpu_heston_black_scholes_limit(),
+        benchmark_mc_rust_cpu_merton_jump_diffusion_call(MC_REPEATS),
+        benchmark_mc_rust_cpu_merton_jump_diffusion_reference_quality(),
         benchmark_mc_rust_cpu_european_greeks(GreekEstimator::BumpAndRevalue),
         benchmark_mc_rust_cpu_european_greeks(GreekEstimator::Pathwise),
         benchmark_mc_rust_cpu_european_greeks(GreekEstimator::LikelihoodRatio),
@@ -357,6 +366,12 @@ fn run_full_benchmarks() -> BenchmarkReport {
             "mc_cpu_gaussian_uncertainty_rust_scrambled_sobol",
             "gaussian_uncertainty_scrambled_sobol",
         ),
+        benchmark_mc_rust_gaussian_uncertainty_moments(
+            MC_REPEATS,
+            SamplingMethod::LatinHypercube,
+            "mc_cpu_gaussian_uncertainty_moments_rust_latin_hypercube",
+            "gaussian_uncertainty_moments_latin_hypercube",
+        ),
     ];
 
     if let Some(metal_result) = benchmark_mc_native_metal_stepwise(MC_REPEATS) {
@@ -425,9 +440,12 @@ fn run_compact_benchmarks_inner() -> BenchmarkReport {
         benchmark_mc_rust_cpu_stepwise(1),
         benchmark_mc_rust_cpu_stepwise_antithetic_quality(),
         benchmark_mc_rust_cpu_terminal(1),
+        benchmark_mc_rust_cpu_european_parameter_sweep(1),
         benchmark_mc_rust_cpu_arithmetic_asian_mlmc(1),
         benchmark_mc_rust_cpu_arithmetic_asian_mlmc_quality(),
+        benchmark_mc_rust_cpu_arithmetic_asian_mlmc_reference_calibration(),
         benchmark_mc_rust_cpu_arithmetic_asian_mlqmc(1),
+        benchmark_mc_rust_cpu_arithmetic_asian_mlqmc_reference_calibration(),
         benchmark_mc_rust_cpu_down_and_out_stepwise(1),
         benchmark_mc_rust_cpu_lookback_stepwise(1),
         benchmark_mc_rust_cpu_american_put_lsm(1),
@@ -436,6 +454,8 @@ fn run_compact_benchmarks_inner() -> BenchmarkReport {
         benchmark_mc_rust_cpu_bermudan_put_lsm_binomial_reference(),
         benchmark_mc_rust_cpu_heston_european_stepwise(1),
         benchmark_mc_rust_cpu_heston_black_scholes_limit(),
+        benchmark_mc_rust_cpu_merton_jump_diffusion_call(1),
+        benchmark_mc_rust_cpu_merton_jump_diffusion_reference_quality(),
         benchmark_mc_rust_cpu_european_greeks(GreekEstimator::BumpAndRevalue),
         benchmark_mc_rust_cpu_european_greeks(GreekEstimator::Pathwise),
         benchmark_mc_rust_cpu_european_greeks(GreekEstimator::LikelihoodRatio),
@@ -485,6 +505,12 @@ fn run_compact_benchmarks_inner() -> BenchmarkReport {
             SamplingMethod::ScrambledSobol,
             "mc_cpu_gaussian_uncertainty_rust_scrambled_sobol",
             "gaussian_uncertainty_scrambled_sobol",
+        ),
+        benchmark_mc_rust_gaussian_uncertainty_moments(
+            1,
+            SamplingMethod::LatinHypercube,
+            "mc_cpu_gaussian_uncertainty_moments_rust_latin_hypercube",
+            "gaussian_uncertainty_moments_latin_hypercube",
         ),
     ];
 
@@ -2145,6 +2171,86 @@ fn benchmark_mc_rust_cpu_terminal(repeats: usize) -> BenchmarkResult {
     }
 }
 
+fn benchmark_mc_rust_cpu_european_parameter_sweep(repeats: usize) -> BenchmarkResult {
+    let cfg = EuropeanCallParameterSweepConfig {
+        base_config: EuropeanCallConfig {
+            n_paths: 25_000,
+            n_steps: MC_STEPS,
+            technique: MonteCarloTechnique::ControlVariate,
+            sampling: SamplingMethod::LatinHypercube,
+            ..EuropeanCallConfig::default()
+        },
+        method: EuropeanCallMethod::TerminalDistribution,
+        seed_stride: 10_000,
+        scenarios: vec![
+            EuropeanCallSweepScenario {
+                scenario_id: "atm_base".to_string(),
+                ..EuropeanCallSweepScenario::default()
+            },
+            EuropeanCallSweepScenario {
+                scenario_id: "down_10pct".to_string(),
+                s0: Some(90.0),
+                ..EuropeanCallSweepScenario::default()
+            },
+            EuropeanCallSweepScenario {
+                scenario_id: "up_10pct_high_vol".to_string(),
+                s0: Some(110.0),
+                sigma: Some(0.35),
+                ..EuropeanCallSweepScenario::default()
+            },
+            EuropeanCallSweepScenario {
+                scenario_id: "long_tenor_low_vol".to_string(),
+                sigma: Some(0.15),
+                t: Some(2.0),
+                ..EuropeanCallSweepScenario::default()
+            },
+        ],
+    };
+
+    let scenario_count = cfg.scenarios.len();
+    let total_paths_per_iteration = cfg.base_config.n_paths * scenario_count;
+    let mut runtimes = Vec::with_capacity(repeats);
+    let mut max_abs_error = 0.0_f64;
+
+    for i in 0..repeats {
+        let mut cfg_i = cfg.clone();
+        cfg_i.base_config.seed = cfg.base_config.seed + i as u64;
+        let started = Instant::now();
+        let result = price_european_call_parameter_sweep_cpu(&cfg_i);
+        let runtime_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        runtimes.push(runtime_ms);
+        max_abs_error = max_abs_error.max(
+            result
+                .rows
+                .iter()
+                .map(|row| row.abs_error_vs_black_scholes)
+                .fold(0.0_f64, f64::max),
+        );
+    }
+
+    let avg_runtime_ms = runtimes.iter().sum::<f64>() / runtimes.len() as f64;
+
+    BenchmarkResult {
+        benchmark_name: "mc_cpu_european_call_parameter_sweep_rust".to_string(),
+        benchmark_version: "0.1".to_string(),
+        implementation: "mc-core::runtime::cpu::price_european_call_parameter_sweep_cpu"
+            .to_string(),
+        backend: "cpu_native".to_string(),
+        methodology: Some("european_terminal_parameter_sweep_lhs_control_variate".to_string()),
+        planner_mode: "n/a".to_string(),
+        iterations: repeats,
+        total_runtime_ms: avg_runtime_ms * repeats as f64,
+        per_iteration_us: avg_runtime_ms * 1_000.0,
+        throughput_per_sec: if avg_runtime_ms == 0.0 {
+            total_paths_per_iteration as f64
+        } else {
+            total_paths_per_iteration as f64 / (avg_runtime_ms / 1_000.0)
+        },
+        metric_name: Some("max_abs_error_vs_black_scholes".to_string()),
+        metric_value: Some(max_abs_error),
+    }
+}
+
 fn benchmark_mc_rust_cpu_stepwise_control_variate(repeats: usize) -> BenchmarkResult {
     let cfg = EuropeanCallConfig {
         n_paths: MC_PATHS,
@@ -2728,6 +2834,45 @@ fn benchmark_mc_rust_cpu_arithmetic_asian_mlmc_quality() -> BenchmarkResult {
     }
 }
 
+fn benchmark_mc_rust_cpu_arithmetic_asian_mlmc_reference_calibration() -> BenchmarkResult {
+    let reference_cfg = ArithmeticAsianCallConfig {
+        n_paths: MC_PATHS,
+        n_steps: MC_STEPS,
+        seed: 7_114,
+        ..ArithmeticAsianCallConfig::default()
+    };
+    let mlmc_cfg = adaptive_arithmetic_asian_mlmc_config(SamplingMethod::Pseudorandom, 1, 7_114);
+
+    let started = Instant::now();
+    let comparison = compare_arithmetic_asian_mlmc_reference_cpu(&mlmc_cfg, &reference_cfg);
+    let runtime_ms = started.elapsed().as_secs_f64() * 1_000.0;
+
+    BenchmarkResult {
+        benchmark_name: "mc_cpu_arithmetic_asian_call_rust_mlmc_reference_calibration".to_string(),
+        benchmark_version: "0.1".to_string(),
+        implementation: "mc-core::runtime::cpu::compare_arithmetic_asian_mlmc_reference_cpu"
+            .to_string(),
+        backend: "cpu_native".to_string(),
+        methodology: Some(
+            "arithmetic_asian_mlmc_realized_error_vs_high_budget_standard_mc".to_string(),
+        ),
+        planner_mode: "n/a".to_string(),
+        iterations: 1,
+        total_runtime_ms: runtime_ms,
+        per_iteration_us: runtime_ms * 1_000.0,
+        throughput_per_sec: if runtime_ms == 0.0 {
+            (comparison.estimate_step_updates
+                + comparison.reference_paths * comparison.reference_steps) as f64
+        } else {
+            (comparison.estimate_step_updates
+                + comparison.reference_paths * comparison.reference_steps) as f64
+                / (runtime_ms / 1_000.0)
+        },
+        metric_name: Some("abs_error_vs_standard_reference".to_string()),
+        metric_value: Some(comparison.abs_error),
+    }
+}
+
 fn benchmark_mc_rust_cpu_arithmetic_asian_mlqmc_quality() -> BenchmarkResult {
     let standard_cfg = ArithmeticAsianCallConfig {
         n_paths: MC_PATHS,
@@ -2903,6 +3048,98 @@ fn benchmark_mc_rust_gaussian_uncertainty(
         },
         metric_name: Some("abs_error_vs_analytic_mean".to_string()),
         metric_value: Some(avg_abs_error),
+    }
+}
+
+fn benchmark_mc_rust_gaussian_uncertainty_moments(
+    repeats: usize,
+    sampling: SamplingMethod,
+    benchmark_name: &str,
+    methodology: &str,
+) -> BenchmarkResult {
+    let cfg = GaussianUncertaintyConfig {
+        n_samples: MC_PATHS,
+        dimensions: 3,
+        seed: 43,
+        sampling,
+    };
+    let mut runtimes = Vec::with_capacity(repeats);
+    let mut variance_abs_errors = Vec::with_capacity(repeats);
+
+    for rep in 0..repeats {
+        let mut cfg_i = cfg;
+        cfg_i.seed = cfg.seed + rep as u64;
+        let started = Instant::now();
+        let result = gaussian_uncertainty_moments_cpu(&cfg_i);
+        let runtime_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        runtimes.push(runtime_ms);
+        variance_abs_errors.push(result.variance_abs_error);
+    }
+
+    let avg_runtime_ms = runtimes.iter().sum::<f64>() / runtimes.len() as f64;
+    let avg_variance_abs_error =
+        variance_abs_errors.iter().sum::<f64>() / variance_abs_errors.len() as f64;
+
+    BenchmarkResult {
+        benchmark_name: benchmark_name.to_string(),
+        benchmark_version: "0.1".to_string(),
+        implementation: "mc-core::runtime::cpu::gaussian_uncertainty_moments_cpu".to_string(),
+        backend: "cpu_native".to_string(),
+        methodology: Some(methodology.to_string()),
+        planner_mode: "n/a".to_string(),
+        iterations: repeats,
+        total_runtime_ms: avg_runtime_ms * repeats as f64,
+        per_iteration_us: avg_runtime_ms * 1_000.0,
+        throughput_per_sec: if avg_runtime_ms == 0.0 {
+            cfg.n_samples as f64
+        } else {
+            cfg.n_samples as f64 / (avg_runtime_ms / 1_000.0)
+        },
+        metric_name: Some("abs_error_vs_analytic_variance".to_string()),
+        metric_value: Some(avg_variance_abs_error),
+    }
+}
+
+fn benchmark_mc_rust_cpu_arithmetic_asian_mlqmc_reference_calibration() -> BenchmarkResult {
+    let reference_cfg = ArithmeticAsianCallConfig {
+        n_paths: MC_PATHS,
+        n_steps: MC_STEPS,
+        seed: 7_115,
+        ..ArithmeticAsianCallConfig::default()
+    };
+    let mlqmc_cfg = adaptive_arithmetic_asian_mlmc_config(
+        SamplingMethod::ScrambledSobol,
+        ASIAN_MLQMC_REPLICATES,
+        7_115,
+    );
+
+    let started = Instant::now();
+    let comparison = compare_arithmetic_asian_mlmc_reference_cpu(&mlqmc_cfg, &reference_cfg);
+    let runtime_ms = started.elapsed().as_secs_f64() * 1_000.0;
+
+    BenchmarkResult {
+        benchmark_name: "mc_cpu_arithmetic_asian_call_rust_mlqmc_reference_calibration".to_string(),
+        benchmark_version: "0.1".to_string(),
+        implementation: "mc-core::runtime::cpu::compare_arithmetic_asian_mlmc_reference_cpu"
+            .to_string(),
+        backend: "cpu_native".to_string(),
+        methodology: Some(
+            "arithmetic_asian_mlqmc_realized_error_vs_high_budget_standard_mc".to_string(),
+        ),
+        planner_mode: "n/a".to_string(),
+        iterations: 1,
+        total_runtime_ms: runtime_ms,
+        per_iteration_us: runtime_ms * 1_000.0,
+        throughput_per_sec: if runtime_ms == 0.0 {
+            (comparison.estimate_step_updates
+                + comparison.reference_paths * comparison.reference_steps) as f64
+        } else {
+            (comparison.estimate_step_updates
+                + comparison.reference_paths * comparison.reference_steps) as f64
+                / (runtime_ms / 1_000.0)
+        },
+        metric_name: Some("abs_error_vs_standard_reference".to_string()),
+        metric_value: Some(comparison.abs_error),
     }
 }
 
@@ -3676,6 +3913,84 @@ fn benchmark_mc_rust_cpu_heston_black_scholes_limit() -> BenchmarkResult {
     }
 }
 
+fn benchmark_mc_rust_cpu_merton_jump_diffusion_call(repeats: usize) -> BenchmarkResult {
+    let cfg = MertonJumpDiffusionCallConfig {
+        n_paths: MC_PATHS,
+        seed: 9_303,
+        ..MertonJumpDiffusionCallConfig::default()
+    };
+
+    let mut runtimes = Vec::with_capacity(repeats);
+    let mut prices = Vec::with_capacity(repeats);
+
+    for i in 0..repeats {
+        let mut cfg_i = cfg;
+        cfg_i.seed = cfg.seed + i as u64;
+        let started = Instant::now();
+        let result = merton_jump_diffusion_call_price_mc_cpu(&cfg_i);
+        let runtime_ms = started.elapsed().as_secs_f64() * 1_000.0;
+        runtimes.push(runtime_ms);
+        prices.push(result.price);
+    }
+
+    let avg_runtime_ms = runtimes.iter().sum::<f64>() / runtimes.len() as f64;
+    let avg_price = prices.iter().sum::<f64>() / prices.len() as f64;
+
+    BenchmarkResult {
+        benchmark_name: "mc_cpu_merton_jump_diffusion_call_rust".to_string(),
+        benchmark_version: "0.1".to_string(),
+        implementation: "mc-core::runtime::cpu::merton_jump_diffusion_call_price_mc_cpu"
+            .to_string(),
+        backend: "cpu_native".to_string(),
+        methodology: Some("merton_jump_diffusion_terminal_poisson_lognormal".to_string()),
+        planner_mode: "n/a".to_string(),
+        iterations: repeats,
+        total_runtime_ms: avg_runtime_ms * repeats as f64,
+        per_iteration_us: avg_runtime_ms * 1_000.0,
+        throughput_per_sec: if avg_runtime_ms == 0.0 {
+            cfg.n_paths as f64
+        } else {
+            (cfg.n_paths as f64) / (avg_runtime_ms / 1_000.0)
+        },
+        metric_name: Some("price_estimate".to_string()),
+        metric_value: Some(avg_price),
+    }
+}
+
+fn benchmark_mc_rust_cpu_merton_jump_diffusion_reference_quality() -> BenchmarkResult {
+    let cfg = MertonJumpDiffusionCallConfig {
+        n_paths: MC_PATHS,
+        seed: 9_304,
+        ..MertonJumpDiffusionCallConfig::default()
+    };
+    let reference = merton_jump_diffusion_call_reference_price(&cfg, 96, 1.0e-12);
+
+    let started = Instant::now();
+    let result = merton_jump_diffusion_call_price_mc_cpu(&cfg);
+    let runtime_ms = started.elapsed().as_secs_f64() * 1_000.0;
+    let abs_error = (result.price - reference).abs();
+
+    BenchmarkResult {
+        benchmark_name: "mc_cpu_merton_jump_diffusion_reference_quality".to_string(),
+        benchmark_version: "0.1".to_string(),
+        implementation: "mc-core::runtime::cpu::merton_jump_diffusion_call_price_mc_cpu"
+            .to_string(),
+        backend: "cpu_native".to_string(),
+        methodology: Some("merton_jump_diffusion_merton_series_reference".to_string()),
+        planner_mode: "n/a".to_string(),
+        iterations: 1,
+        total_runtime_ms: runtime_ms,
+        per_iteration_us: runtime_ms * 1_000.0,
+        throughput_per_sec: if runtime_ms == 0.0 {
+            cfg.n_paths as f64
+        } else {
+            cfg.n_paths as f64 / (runtime_ms / 1_000.0)
+        },
+        metric_name: Some("abs_error_vs_merton_series".to_string()),
+        metric_value: Some(abs_error),
+    }
+}
+
 fn benchmark_mc_rust_cpu_european_greeks(estimator: GreekEstimator) -> BenchmarkResult {
     let cfg = EuropeanCallConfig {
         n_paths: GREEK_PATHS,
@@ -4401,6 +4716,10 @@ fn benchmark_python_competitors(
                     format!("mc_gpu_european_call_{}", entry.library)
                 } else if methodology.starts_with("lookback_fixed_strike") {
                     format!("mc_cpu_lookback_call_{}", entry.library)
+                } else if methodology.starts_with("american_put_lsm") {
+                    format!("mc_cpu_american_put_lsm_{}", entry.library)
+                } else if methodology.starts_with("bermudan_put_lsm") {
+                    format!("mc_cpu_bermudan_put_lsm_{}", entry.library)
                 } else if methodology.starts_with("heston_") {
                     format!("mc_cpu_heston_european_call_{}", entry.library)
                 } else {
@@ -4452,6 +4771,10 @@ fn benchmark_python_competitors(
                             format!("mc_gpu_european_call_{}_unavailable", entry.library)
                         } else if methodology.starts_with("lookback_fixed_strike") {
                             format!("mc_cpu_lookback_call_{}_unavailable", entry.library)
+                        } else if methodology.starts_with("american_put_lsm") {
+                            format!("mc_cpu_american_put_lsm_{}_unavailable", entry.library)
+                        } else if methodology.starts_with("bermudan_put_lsm") {
+                            format!("mc_cpu_bermudan_put_lsm_{}_unavailable", entry.library)
                         } else if methodology.starts_with("heston_") {
                             format!("mc_cpu_heston_european_call_{}_unavailable", entry.library)
                         } else if methodology == "terminal_distribution" {

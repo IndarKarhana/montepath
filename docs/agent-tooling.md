@@ -9,7 +9,7 @@ dictionaries with `ok`, structured diagnostics, and reproducibility manifests.
 Use:
 
 ```python
-from mc_library import agent_tool_manifest, export_json_schemas
+from montepath import agent_tool_manifest, export_json_schemas
 
 manifest = agent_tool_manifest()
 schemas = export_json_schemas()
@@ -18,22 +18,53 @@ schemas = export_json_schemas()
 The manifest schema version is `agent-tools.v1`. The run manifest schema
 version is `agent-run.v1`.
 
+## MCP Server
+
+Installed packages expose a dependency-free MCP-compatible stdio server:
+
+```bash
+montepath-mcp
+```
+
+The server handles JSON-RPC-style `initialize`, `tools/list`, `tools/call`,
+`ping`, and `health` messages. `tools/list` embeds the same request schemas
+returned by `export_json_schemas()`. `tools/call` delegates to the stable
+Python agent wrappers and returns MCP content blocks whose text is a
+JSON-serialized tool response.
+
+Server metadata uses schema version `mcp-server.v1` and includes:
+
+- package and protocol version
+- request-size and execution limits
+- benchmark execution policy
+- structured failure policy
+
+Current limits:
+
+- maximum request size: `1_000_000` bytes
+- maximum `config.n_paths` through MCP: `1_000_000`
+- full benchmark execution is blocked through MCP; use dry-run benchmark
+  metadata or run the benchmark harness directly
+
+Protocol failures return JSON-RPC errors. Tool failures return content with
+`ok=false` and structured diagnostics whenever possible.
+
 Available tools:
 
 | Tool | Purpose | Determinism |
 | --- | --- | --- |
-| `mc.validate` | Validate a supported workload request without executing simulation. | deterministic |
-| `mc.recommend` | Recommend method, sampling, and technique. | deterministic |
-| `mc.plan` | Build a dry-run execution plan with cost and caveat metadata. | deterministic |
-| `mc.execute` | Execute a narrow Python reference workload. | deterministic for same config and seed |
-| `mc.compare` | Compare fast and accuracy-oriented method choices. | deterministic |
-| `mc.benchmark` | Return benchmark command metadata by default, or run when explicitly requested. | environment-sensitive when executed |
-| `mc.reproduce` | Build a reproduction recipe from a run manifest. | deterministic |
-| `mc.planner_evidence` | Load measured planner accuracy, winner records, and fixture references. | deterministic |
-| `mc.cost_frontier` | Return measured method/backend cost frontier rows for a workload. | deterministic |
-| `mc.compare_methods` | Compare measured method/runtime tradeoffs for a workload. | deterministic |
-| `mc.why_not_faster` | Explain why a requested method is not the measured recommendation. | deterministic |
-| `mc.mlmc_calibration` | Report estimated-vs-realized MLMC/MLQMC calibration evidence. | deterministic |
+| `montepath.validate` | Validate a supported workload request without executing simulation. | deterministic |
+| `montepath.recommend` | Recommend method, sampling, and technique. | deterministic |
+| `montepath.plan` | Build a dry-run execution plan with cost and caveat metadata. | deterministic |
+| `montepath.execute` | Execute a narrow Python reference workload. | deterministic for same config and seed |
+| `montepath.compare` | Compare fast and accuracy-oriented method choices. | deterministic |
+| `montepath.benchmark` | Return benchmark command metadata by default, or run when explicitly requested. | environment-sensitive when executed |
+| `montepath.reproduce` | Build a reproduction recipe from a run manifest. | deterministic |
+| `montepath.planner_evidence` | Load measured planner accuracy, winner records, and fixture references. | deterministic |
+| `montepath.cost_frontier` | Return measured method/backend cost frontier rows for a workload. | deterministic |
+| `montepath.compare_methods` | Compare measured method/runtime tradeoffs for a workload. | deterministic |
+| `montepath.why_not_faster` | Explain why a requested method is not the measured recommendation. | deterministic |
+| `montepath.mlmc_calibration` | Report estimated-vs-realized MLMC/MLQMC calibration evidence. | deterministic |
 
 ## Reproducibility Manifest
 
@@ -115,7 +146,7 @@ Dry-run plan response shape:
   },
   "manifest": {
     "schema_version": "agent-run.v1",
-    "tool": "mc.plan",
+    "tool": "montepath.plan",
     "workload": "european_call",
     "seed": 5,
     "backend": "python_reference",
@@ -144,7 +175,7 @@ Planner intelligence tools read benchmark artifacts instead of making hidden
 performance assumptions. Example:
 
 ```python
-from mc_library import agent_compare_methods, agent_why_not_faster
+from montepath import agent_compare_methods, agent_why_not_faster
 
 comparison = agent_compare_methods({"workload": "arithmetic_asian_call"})
 explanation = agent_why_not_faster(

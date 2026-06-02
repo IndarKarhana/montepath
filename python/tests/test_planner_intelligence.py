@@ -1,6 +1,6 @@
 import unittest
 
-from mc_library import (
+from montepath import (
     compare_methods,
     cost_frontier,
     load_planner_evidence,
@@ -65,6 +65,8 @@ class PlannerIntelligenceTests(unittest.TestCase):
         self.assertEqual(calibration["workload"], "arithmetic_asian_call")
         self.assertIn("estimated_error_source", calibration)
         self.assertIn("realized_error_metric", calibration)
+        self.assertIn("mlmc_reference_abs_error", calibration)
+        self.assertIn("mlqmc_reference_abs_error", calibration)
         self.assertIn("calibration_status", calibration)
 
 

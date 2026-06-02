@@ -61,12 +61,15 @@ This document summarizes what established libraries do well for usability and ho
 - Python `PricingResult` and `GreekReport` objects with `manifest`,
   `explain()`, and `reproduce()`
 - Python `McConfigurationError` with code, message, and suggestion fields
+- Python native-runtime discovery through `native_runtime_status()` so users
+  and agents can tell whether compiled Rust execution is installed
+- Rust-backed Python CPU extension packaging through `montepath._native` for
+  the current native bridge workload set
 - install profile docs, error-code docs, quickstart/API docs, notebooks, and
   wheel/source build workflow
 
 ## Next UX Implementation Steps
 
-- connect Python pricing helpers to compiled bindings when the stable extension
-  ABI is ready
+- automate installed-package smoke tests for the Rust-backed Python extension
 - add `explain_plan()` style textual helper for easier planner interpretation
 - publish built distributions once release credentials and version gates are in place

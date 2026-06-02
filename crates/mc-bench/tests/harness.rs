@@ -119,6 +119,21 @@ fn python_competitor_script_reports_quantlib_lane() {
         .expect("QuantLib Heston lane should be reported as available or unavailable");
 
     assert!(quantlib_heston["available"].is_boolean());
+
+    for methodology in [
+        "american_put_lsm_quantlib_mc",
+        "bermudan_put_lsm_quantlib_mc",
+    ] {
+        let entry = results
+            .iter()
+            .find(|entry| {
+                entry["library"].as_str() == Some("quantlib")
+                    && entry["methodology"].as_str() == Some(methodology)
+            })
+            .unwrap_or_else(|| panic!("QuantLib {methodology} lane should be reported"));
+
+        assert!(entry["available"].is_boolean());
+    }
 }
 
 #[test]
@@ -141,6 +156,7 @@ fn phase2_capability_catalog_is_machine_readable_and_complete() {
         "fixed_strike_lookback_call_gbm",
         "two_asset_basket_call_gbm",
         "heston_european_call",
+        "merton_jump_diffusion_call",
         "gaussian_uncertainty_mean",
     ] {
         let entry = entries
@@ -227,7 +243,9 @@ fn phase2_reference_fixtures_are_registered() {
         "crr_american_put_atm_1y_reference",
         "crr_bermudan_put_atm_1y_quarterly_reference",
         "heston_black_scholes_limit_atm_1y",
+        "merton_jump_diffusion_call_series_reference",
         "gaussian_uncertainty_mean_reference",
+        "gaussian_uncertainty_moment_reference",
     ] {
         let entry = entries
             .iter()
@@ -391,6 +409,17 @@ fn rust_mc_benchmark_is_present() {
         Some("terminal_distribution")
     );
 
+    let parameter_sweep = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "mc_cpu_european_call_parameter_sweep_rust")
+        .expect("European-call parameter-sweep benchmark should be present");
+    assert!(parameter_sweep.total_runtime_ms > 0.0);
+    assert_eq!(
+        parameter_sweep.metric_name.as_deref(),
+        Some("max_abs_error_vs_black_scholes")
+    );
+
     let antithetic_quality = report
         .results
         .iter()
@@ -410,6 +439,21 @@ fn rust_mc_benchmark_is_present() {
         qmc_pricing_quality.metric_name.as_deref(),
         Some("stderr_ratio_vs_pseudorandom")
     );
+
+    for name in [
+        "mc_cpu_arithmetic_asian_call_rust_mlmc_reference_calibration",
+        "mc_cpu_arithmetic_asian_call_rust_mlqmc_reference_calibration",
+    ] {
+        let calibration = report
+            .results
+            .iter()
+            .find(|r| r.benchmark_name == name)
+            .unwrap_or_else(|| panic!("{name} should be present"));
+        assert_eq!(
+            calibration.metric_name.as_deref(),
+            Some("abs_error_vs_standard_reference")
+        );
+    }
 
     let realized_error = report
         .results
@@ -519,6 +563,24 @@ fn rust_mc_benchmark_is_present() {
         Some("abs_error_vs_black_scholes")
     );
 
+    let merton = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "mc_cpu_merton_jump_diffusion_call_rust")
+        .expect("Merton jump-diffusion benchmark should be present");
+    assert!(merton.total_runtime_ms > 0.0);
+    assert_eq!(merton.metric_name.as_deref(), Some("price_estimate"));
+
+    let merton_quality = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "mc_cpu_merton_jump_diffusion_reference_quality")
+        .expect("Merton jump-diffusion reference quality benchmark should be present");
+    assert_eq!(
+        merton_quality.metric_name.as_deref(),
+        Some("abs_error_vs_merton_series")
+    );
+
     let greek_bump = report
         .results
         .iter()
@@ -567,5 +629,15 @@ fn rust_mc_benchmark_is_present() {
     assert_eq!(
         uq.metric_name.as_deref(),
         Some("abs_error_vs_analytic_mean")
+    );
+
+    let uq_moments = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "mc_cpu_gaussian_uncertainty_moments_rust_latin_hypercube")
+        .expect("Gaussian uncertainty moments benchmark should be present");
+    assert_eq!(
+        uq_moments.metric_name.as_deref(),
+        Some("abs_error_vs_analytic_variance")
     );
 }

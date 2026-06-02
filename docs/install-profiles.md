@@ -5,12 +5,19 @@
 Use this for local notebooks, CI, and first-time users:
 
 ```bash
-python -m pip install "mc-library[cpu]"
+uv pip install "montepath[cpu]"
 ```
 
-Current Python UX helpers are dependency-free. The `cpu` extra is intentionally
-empty for now so downstream users can depend on a stable profile before
-compiled bindings land.
+Equivalent pip command:
+
+```bash
+python -m pip install "montepath[cpu]"
+```
+
+Current wheels include the dependency-free Python UX helpers plus the
+Rust-backed `montepath._native` CPU extension. The `cpu` extra is intentionally
+empty for now so downstream users can depend on a stable profile while CPU
+native execution remains part of the base wheel.
 
 ## Apple Metal
 
@@ -31,7 +38,7 @@ accelerator profile.
 CUDA native execution is deferred. The future install shape is reserved as:
 
 ```bash
-python -m pip install "mc-library[cuda]"
+uv pip install "montepath[cuda]"
 ```
 
 Until native CUDA execution ships, CUDA requests must remain explicit about
@@ -44,4 +51,3 @@ QuantLib competitor rows can be populated with:
 ```bash
 python -m pip install -r benchmarks/competitors/requirements-quantlib.txt
 ```
-

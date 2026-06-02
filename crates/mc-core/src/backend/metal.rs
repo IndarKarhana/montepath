@@ -1296,5 +1296,5 @@ fn compile_metal_kernel_to_metallib(plan: &ExecutionPlan) -> Result<PathBuf, Str
 }
 
 fn staged_metal_output_dir() -> PathBuf {
-    std::env::temp_dir().join("mc-library").join("metal")
+    std::env::temp_dir().join("montepath").join("metal")
 }

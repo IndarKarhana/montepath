@@ -14,7 +14,7 @@ problems.
 Example:
 
 ```python
-from mc_library import EuropeanCallConfig, McConfigurationError, price_european_call
+from montepath import EuropeanCallConfig, McConfigurationError, price_european_call
 
 try:
     price_european_call(EuropeanCallConfig(n_paths=0))

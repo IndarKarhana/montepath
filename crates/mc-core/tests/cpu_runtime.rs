@@ -3,23 +3,28 @@ use mc_core::{
     arithmetic_asian_call_price_mlmc_cpu, basket_call_price_mc_cpu, bermudan_put_price_lsm_cpu,
     black_scholes_european_call_greeks, black_scholes_european_call_price,
     black_scholes_european_put_price, compare_american_put_lsm_binomial_reference_cpu,
-    compare_arithmetic_asian_sampling_quality_cpu, compare_basket_call_sampling_quality_cpu,
-    compare_bermudan_put_lsm_binomial_reference_cpu, compare_down_and_out_sampling_quality_cpu,
-    compare_european_call_realized_error_cpu, compare_european_call_sampling_quality_cpu,
-    compare_heston_black_scholes_limit_cpu, diagnose_standard_normals_cpu,
-    down_and_out_call_price_mc_cpu, european_call_greeks_cpu, european_call_price_mc_cpu,
-    european_call_price_mc_cpu_stepwise, european_call_price_mc_cpu_terminal,
-    gaussian_uncertainty_mean_cpu, generate_standard_normals_cpu, heston_european_call_greeks_cpu,
-    heston_european_call_price_mc_cpu, lookback_call_price_mc_cpu, monte_carlo_method_capabilities,
-    price_all_current_greeks_bump_and_revalue_cpu, solve_arithmetic_asian_mlmc_tolerance_cpu,
+    compare_arithmetic_asian_mlmc_reference_cpu, compare_arithmetic_asian_sampling_quality_cpu,
+    compare_basket_call_sampling_quality_cpu, compare_bermudan_put_lsm_binomial_reference_cpu,
+    compare_down_and_out_sampling_quality_cpu, compare_european_call_realized_error_cpu,
+    compare_european_call_sampling_quality_cpu, compare_heston_black_scholes_limit_cpu,
+    diagnose_standard_normals_cpu, down_and_out_call_price_mc_cpu, european_call_greeks_cpu,
+    european_call_price_mc_cpu, european_call_price_mc_cpu_stepwise,
+    european_call_price_mc_cpu_terminal, gaussian_uncertainty_mean_cpu,
+    gaussian_uncertainty_moments_cpu, generate_standard_normals_cpu,
+    heston_european_call_greeks_cpu, heston_european_call_price_mc_cpu, lookback_call_price_mc_cpu,
+    merton_jump_diffusion_call_price_mc_cpu, merton_jump_diffusion_call_reference_price,
+    monte_carlo_method_capabilities, price_all_current_greeks_bump_and_revalue_cpu,
+    price_european_call_parameter_sweep_cpu, solve_arithmetic_asian_mlmc_tolerance_cpu,
     structured_sampling_guidance_cpu, tune_arithmetic_asian_mlmc_allocation_cpu, AmericanPutConfig,
     AmericanPutPricer, ArithmeticAsianCallConfig, ArithmeticAsianCallPricer,
     ArithmeticAsianMlmcConfig, ArithmeticAsianMlmcPricer, ArithmeticAsianMlmcToleranceConfig,
     BackendMethodSupport, BasketCallConfig, BasketCallPricer, BermudanPutConfig, BermudanPutPricer,
     DownAndOutCallConfig, DownAndOutCallPricer, EuropeanCallConfig, EuropeanCallMethod,
-    EuropeanCallPricer, GaussianUncertaintyConfig, Greek, GreekEstimator, HestonEuropeanCallConfig,
-    HestonEuropeanCallPricer, LookbackCallConfig, LookbackCallPricer, MonteCarloRng,
-    MonteCarloTechnique, PricingWorkloadFamily, SamplingMethod,
+    EuropeanCallParameterSweepConfig, EuropeanCallPricer, EuropeanCallSweepScenario,
+    GaussianUncertaintyConfig, Greek, GreekEstimator, HestonEuropeanCallConfig,
+    HestonEuropeanCallPricer, LookbackCallConfig, LookbackCallPricer,
+    MertonJumpDiffusionCallConfig, MonteCarloRng, MonteCarloTechnique, PricingWorkloadFamily,
+    SamplingMethod,
 };
 
 #[test]
@@ -46,6 +51,92 @@ fn european_call_mc_is_deterministic_for_same_seed() {
     let r1 = european_call_price_mc_cpu(&cfg);
     let r2 = european_call_price_mc_cpu(&cfg);
     assert_eq!(r1, r2);
+}
+
+#[test]
+fn merton_jump_diffusion_reduces_to_black_scholes_when_jump_intensity_is_zero() {
+    let cfg = MertonJumpDiffusionCallConfig {
+        jump_intensity: 0.0,
+        jump_mean: -0.1,
+        jump_volatility: 0.3,
+        n_paths: 80_000,
+        seed: 10_201,
+        ..MertonJumpDiffusionCallConfig::default()
+    };
+
+    let reference = merton_jump_diffusion_call_reference_price(&cfg, 64, 1.0e-12);
+    let black_scholes = black_scholes_european_call_price(cfg.s0, cfg.k, cfg.r, cfg.sigma, cfg.t);
+    let simulated = merton_jump_diffusion_call_price_mc_cpu(&cfg);
+
+    assert!((reference - black_scholes).abs() < 1.0e-10);
+    assert!((simulated.price - black_scholes).abs() <= simulated.stderr * 4.0 + 0.05);
+}
+
+#[test]
+fn merton_jump_diffusion_matches_series_reference_within_mc_error() {
+    let cfg = MertonJumpDiffusionCallConfig {
+        n_paths: 120_000,
+        seed: 10_202,
+        ..MertonJumpDiffusionCallConfig::default()
+    };
+
+    let reference = merton_jump_diffusion_call_reference_price(&cfg, 96, 1.0e-12);
+    let simulated = merton_jump_diffusion_call_price_mc_cpu(&cfg);
+    let abs_error = (simulated.price - reference).abs();
+
+    assert!(reference > black_scholes_european_call_price(cfg.s0, cfg.k, cfg.r, cfg.sigma, cfg.t));
+    assert!(abs_error <= simulated.stderr * 4.0 + 0.10);
+}
+
+#[test]
+fn european_call_parameter_sweep_is_structured_and_reproducible() {
+    let cfg = EuropeanCallParameterSweepConfig {
+        base_config: EuropeanCallConfig {
+            n_paths: 30_000,
+            n_steps: 32,
+            seed: 20_001,
+            sampling: SamplingMethod::LatinHypercube,
+            technique: MonteCarloTechnique::ControlVariate,
+            ..EuropeanCallConfig::default()
+        },
+        method: EuropeanCallMethod::TerminalDistribution,
+        seed_stride: 17,
+        scenarios: vec![
+            EuropeanCallSweepScenario {
+                scenario_id: "atm_base".to_string(),
+                ..EuropeanCallSweepScenario::default()
+            },
+            EuropeanCallSweepScenario {
+                scenario_id: "stress_high_vol".to_string(),
+                sigma: Some(0.35),
+                s0: Some(105.0),
+                ..EuropeanCallSweepScenario::default()
+            },
+        ],
+    };
+
+    let first = price_european_call_parameter_sweep_cpu(&cfg);
+    let second = price_european_call_parameter_sweep_cpu(&cfg);
+
+    assert_eq!(first, second);
+    assert_eq!(first.schema_version, "european-call-sweep.v1");
+    assert_eq!(first.workload, PricingWorkloadFamily::EuropeanCall);
+    assert_eq!(first.scenario_count, 2);
+    assert_eq!(first.total_paths, 60_000);
+    assert_eq!(first.rows[0].scenario_id, "atm_base");
+    assert_eq!(first.rows[1].scenario_id, "stress_high_vol");
+    assert_eq!(first.rows[0].config.seed, 20_001);
+    assert_eq!(first.rows[1].config.seed, 20_018);
+
+    for row in &first.rows {
+        assert_eq!(row.method, EuropeanCallMethod::TerminalDistribution);
+        assert_eq!(row.config.sampling, SamplingMethod::LatinHypercube);
+        assert_eq!(row.config.technique, MonteCarloTechnique::ControlVariate);
+        assert!(row.result.price.is_finite());
+        assert!(row.analytic_price.is_finite());
+        assert!(row.abs_error_vs_black_scholes < 0.20);
+        assert!(row.abs_error_stderr_units.is_finite());
+    }
 }
 
 #[test]
@@ -361,6 +452,29 @@ fn gaussian_uncertainty_mean_matches_analytic_reference() {
 }
 
 #[test]
+fn gaussian_uncertainty_moments_match_analytic_reference() {
+    let cfg = GaussianUncertaintyConfig {
+        n_samples: 131_072,
+        dimensions: 3,
+        seed: 95,
+        sampling: SamplingMethod::LatinHypercube,
+    };
+
+    let result = gaussian_uncertainty_moments_cpu(&cfg);
+    let analytic_variance = 2.0 + 0.25 + (0.02f64.exp() - 0.01f64.exp());
+
+    assert_eq!(result.samples, cfg.n_samples);
+    assert_eq!(result.dimensions, cfg.dimensions);
+    assert_eq!(result.sampling, cfg.sampling);
+    assert!(result.mean_abs_error < 0.02);
+    assert!(result.variance_abs_error < 0.04);
+    assert!((result.analytic_variance - analytic_variance).abs() < 1e-12);
+    assert!(result.mean_ci_95_low <= result.mean);
+    assert!(result.mean_ci_95_high >= result.mean);
+    assert!(result.warnings.is_empty());
+}
+
+#[test]
 fn european_call_mc_outputs_sane_values() {
     let cfg = EuropeanCallConfig {
         n_paths: 30_000,
@@ -599,6 +713,40 @@ fn arithmetic_asian_mlqmc_tolerance_solver_accounts_for_replicates() {
     assert_eq!(result.total_step_updates, plan.estimated_step_updates);
     assert!(plan.estimated_stderr <= tolerance.target_stderr);
     assert!(plan.target_met);
+}
+
+#[test]
+fn arithmetic_asian_mlmc_reference_comparison_reports_realized_error() {
+    let cfg = ArithmeticAsianMlmcConfig {
+        base_steps: 8,
+        levels: 3,
+        paths_per_level: vec![12_000, 6_000, 3_000],
+        seed: 916,
+        ..ArithmeticAsianMlmcConfig::default()
+    };
+    let reference_cfg = ArithmeticAsianCallConfig {
+        n_paths: 90_000,
+        n_steps: 32,
+        seed: 917,
+        ..ArithmeticAsianCallConfig::default()
+    };
+
+    let comparison = compare_arithmetic_asian_mlmc_reference_cpu(&cfg, &reference_cfg);
+
+    assert_eq!(
+        comparison.workload,
+        PricingWorkloadFamily::ArithmeticAsianCall
+    );
+    assert_eq!(
+        comparison.reference_name,
+        "high_budget_arithmetic_asian_standard_mc"
+    );
+    assert_eq!(comparison.sampling, SamplingMethod::Pseudorandom);
+    assert_eq!(comparison.levels, cfg.levels);
+    assert_eq!(comparison.reference_paths, reference_cfg.n_paths);
+    assert_eq!(comparison.reference_steps, reference_cfg.n_steps);
+    assert!(comparison.abs_error <= comparison.combined_stderr * 4.0 + 0.15);
+    assert!(comparison.error_combined_stderr_units.is_finite());
 }
 
 #[test]

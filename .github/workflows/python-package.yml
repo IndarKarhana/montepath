@@ -19,7 +19,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install build tools
-        run: python -m pip install --upgrade pip build pytest
+        run: python -m pip install --upgrade pip build maturin pytest
 
       - name: Test Python package
         run: PYTHONPATH=python python -m pytest -q
@@ -27,9 +27,22 @@ jobs:
       - name: Build wheel and source distribution
         run: python -m build
 
+      - name: Smoke test installed wheel
+        run: |
+          python -m venv /tmp/montepath-wheel-smoke
+          /tmp/montepath-wheel-smoke/bin/python -m pip install --upgrade pip
+          /tmp/montepath-wheel-smoke/bin/python -m pip install dist/*.whl
+          /tmp/montepath-wheel-smoke/bin/python python/tests/installed_package_smoke.py
+
+      - name: Smoke test installed source distribution
+        run: |
+          python -m venv /tmp/montepath-sdist-smoke
+          /tmp/montepath-sdist-smoke/bin/python -m pip install --upgrade pip
+          /tmp/montepath-sdist-smoke/bin/python -m pip install dist/*.tar.gz
+          /tmp/montepath-sdist-smoke/bin/python python/tests/installed_package_smoke.py
+
       - name: Upload distribution artifacts
         uses: actions/upload-artifact@v4
         with:
           name: python-package-dist
           path: dist/*
-

@@ -86,6 +86,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add explicit QuantLib competitor reporting for the overlapping European Monte Carlo workload.
 - `done` Add explicit QuantLib competitor reporting for the fixed-strike lookback Monte Carlo workload.
 - `done` Add explicit QuantLib competitor reporting for the Heston analytic reference lane.
+- `done` Add explicit QuantLib competitor reporting for American/Bermudan Longstaff-Schwartz early-exercise lanes, including unavailable diagnostics when local QuantLib-Python support is missing.
 - `done` Add QuantLib-enabled competitor CI profile with environment manifest and uploaded release-style artifact.
 - `done` Add dedicated competitor CI profiles for NumPy, Numba, SciPy QMC, QuantLib, JAX, CuPy, and PyTorch with environment manifests.
 - `done` Add Phase 2 reference fixture registry for supported products, models, and Greeks using analytic references where available and explicit caveats elsewhere.
@@ -114,6 +115,10 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add arithmetic Asian MLQMC benchmark and estimator-quality coverage.
 - `done` Add pilot-based MLMC/MLQMC path allocation tuning.
 - `done` Add arithmetic Asian MLMC/MLQMC adaptive tolerance planning.
+- `done` Add arithmetic Asian MLMC/MLQMC realized-error calibration rows against high-budget standard Monte Carlo references.
+- `done` Add Merton jump-diffusion benchmark and analytic series-reference quality coverage.
+- `done` Add European-call parameter-sweep benchmark coverage with per-scenario Black-Scholes accuracy tracking.
+- `done` Add Gaussian UQ analytic-variance benchmark coverage beyond the first analytic-mean check.
 
 ## Phase 7: Agent Experience and Integration
 
@@ -129,6 +134,7 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add explain-plan and run-manifest helpers as first-class agent-facing surfaces.
 - `done` Add Python-facing agent wrappers that preserve typed, explainable contracts.
 - `done` Add planner-intelligence agent tools for evidence loading, cost frontiers, measured method comparison, why-not-faster explanations, and MLMC/MLQMC calibration.
+- `done` Add typed European-call parameter-sweep result surfaces so agents can inspect batch scenarios without parsing prose.
 
 ## Phase 8: Advanced Simulation Techniques
 
@@ -146,10 +152,11 @@ This roadmap is a living document and must be updated with every meaningful scop
 - `done` Add agent-readable structured-sampling guidance and standard-normal diagnostics.
 - `done` Add cross-workload QMC pricing-quality comparisons against pseudorandom baselines.
 - `done` Add first non-option Gaussian UQ benchmark with analytic-mean error tracking.
+- `done` Add Gaussian UQ analytic moment coverage with variance error and confidence-interval metadata.
 - `done` Add two-asset basket-call CPU workload and QMC quality benchmark coverage.
 - `done` Add European-call realized-error QMC benchmarks against the Black-Scholes analytic reference.
-- `in-progress` Optimize structured sampling so Halton, Latin hypercube, and Sobol variants are useful at larger path and step counts.
-- `in-progress` Calibrate MLMC level/path tolerance defaults and broaden beyond the first arithmetic Asian reference path.
+- `done` Add benchmark-backed structured sampling calibration and guidance for Halton, Latin hypercube, and Sobol variants on the current CPU workload set.
+- `done` Calibrate MLMC/MLQMC level/path tolerance defaults on the arithmetic Asian reference path with realized-error benchmark rows.
 - `done` Add first artifact-backed realized-vs-estimated error validation surface for arithmetic Asian MLMC/MLQMC.
 
 ## Phase 9: Flagship Competitiveness Program
@@ -162,7 +169,37 @@ See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 - `done` Phase 4: Become AI-agent native with manifests, schemas, and safe tool wrappers.
 - `in-progress` Phase 5: Match JAX/CuPy/PyTorch accelerator credibility with native CUDA, hardware CI, and competitor environments.
 - `done` Phase 6: Turn planner intelligence into a measured advantage with benchmark-backed winner databases and method comparison surfaces.
-- `in-progress` Phase 7: Broaden product/model/UQ coverage with documented assumptions, references, Greeks, and unsupported states.
+- `done` Phase 7: Broaden product/model/UQ coverage with documented assumptions, references, Greeks, and unsupported states.
+
+## Phase 10: Non-CUDA V1 Polish
+
+See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
+
+- `done` Add Rust-backed Python execution surface while preserving the existing Python-first ergonomics.
+- `done` Add Python native-runtime discovery so users and agents can detect whether compiled Rust execution is installed.
+- `done` Expose main Rust workload families through stable Python configs and native-bridge result surfaces.
+- `done` Package agent tools behind an MCP-compatible server boundary with schemas, execution limits, and version metadata.
+- `done` Reduce or scope Clippy lint debt so warning enforcement becomes useful in CI.
+- `done` Validate clean wheel/source installation and installed-package smoke tests.
+- `done` Document that native CUDA execution is deferred to a later library version.
+
+## Phase 11: MontePath PyPI Publication
+
+- `done` Rename the public Python distribution to `montepath`.
+- `done` Rename the public Python import package to `montepath`.
+- `done` Rename the Rust-backed native extension module to `montepath._native`.
+- `done` Rename the MCP console entry point to `montepath-mcp`.
+- `done` Update package metadata, docs, examples, function catalog, and release
+  checklist for the MontePath public alpha.
+- `done` Rename the hosted GitHub repository to `montepath` and verify the
+  repository URLs resolve.
+- `done` Add the GitHub Actions trusted-publishing workflow and repository
+  `pypi` environment for PyPI OIDC publication.
+- `todo` Configure the PyPI account-side pending trusted publisher or provide a
+  scoped PyPI token.
+- `todo` Publish `montepath` `0.1.0` to PyPI after final release checks.
+- `todo` Verify post-publication installation through `uv pip install
+  montepath`, `uv add montepath`, and `uvx --from montepath montepath-mcp`.
 
 ## Ongoing Engineering Quality Track
 
@@ -174,12 +211,14 @@ See `docs/flagship-competitiveness-plan.md` for the durable execution sequence.
 - `done` Add baseline CPU CI for format, test, and benchmark smoke checks.
 - `done` Validate feature-gated native backend staging in CPU-only CI.
 - `done` Add Python package metadata, wheel/source build workflow, changelog, versioning policy, and release checklist.
+- `in-progress` Prepare MontePath for first PyPI publication.
 - `done` Add docs-site structure with quickstarts, examples, benchmark interpretation, API reference, and migration notes.
 - `in-progress` Add native CUDA and Metal hardware CI on dedicated runners.
 
 ## Remaining V1 Completion Count
 
-There are `2` flagship completion phases remaining:
+There are `2` completion tracks remaining:
 
-1. Finish Phase 5 accelerator credibility, competitor CI, and native CUDA.
-2. Finish Phase 7 broader product/model/UQ coverage.
+1. Finish Phase 5 native CUDA execution in a later accelerator-focused version.
+2. Publish MontePath `0.1.0` to PyPI and verify `uv`/`uvx` installation after
+   publication.

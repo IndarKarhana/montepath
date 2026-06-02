@@ -82,6 +82,7 @@ pub struct StandardNormalDiagnostics {
 #[serde(rename_all = "snake_case")]
 pub enum PricingWorkloadFamily {
     EuropeanCall,
+    MertonJumpDiffusionCall,
     HestonEuropeanCall,
     ArithmeticAsianCall,
     DownAndOutCall,
@@ -230,6 +231,26 @@ pub struct EarlyExerciseReferenceComparison {
     pub warnings: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MlmcReferenceComparison {
+    pub workload: PricingWorkloadFamily,
+    pub reference_name: String,
+    pub sampling: SamplingMethod,
+    pub levels: usize,
+    pub estimate_price: f64,
+    pub estimate_stderr: f64,
+    pub estimate_step_updates: usize,
+    pub reference_price: f64,
+    pub reference_stderr: f64,
+    pub reference_paths: usize,
+    pub reference_steps: usize,
+    pub error: f64,
+    pub abs_error: f64,
+    pub combined_stderr: f64,
+    pub error_combined_stderr_units: f64,
+    pub warnings: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct GaussianUncertaintyConfig {
     pub n_samples: usize,
@@ -255,6 +276,23 @@ pub struct GaussianUncertaintyResult {
     pub stderr: f64,
     pub analytic_mean: f64,
     pub abs_error: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GaussianUncertaintyMomentResult {
+    pub samples: usize,
+    pub dimensions: usize,
+    pub sampling: SamplingMethod,
+    pub mean: f64,
+    pub variance: f64,
+    pub stderr_mean: f64,
+    pub analytic_mean: f64,
+    pub analytic_variance: f64,
+    pub mean_abs_error: f64,
+    pub variance_abs_error: f64,
+    pub mean_ci_95_low: f64,
+    pub mean_ci_95_high: f64,
+    pub warnings: Vec<String>,
 }
 
 pub fn structured_sampling_guidance_cpu(
@@ -733,12 +771,69 @@ pub fn gaussian_uncertainty_mean_cpu(cfg: &GaussianUncertaintyConfig) -> Gaussia
     }
 }
 
+pub fn gaussian_uncertainty_moments_cpu(
+    cfg: &GaussianUncertaintyConfig,
+) -> GaussianUncertaintyMomentResult {
+    assert!(cfg.n_samples > 0, "n_samples must be > 0");
+    assert!(cfg.dimensions >= 3, "dimensions must be >= 3");
+
+    let normals =
+        generate_standard_normals_cpu(cfg.sampling, cfg.n_samples, cfg.dimensions, cfg.seed);
+    let mut sum = 0.0;
+    let mut sq_sum = 0.0;
+
+    for row in normals.chunks_exact(cfg.dimensions) {
+        let value = gaussian_uncertainty_response(row);
+        sum += value;
+        sq_sum += value * value;
+    }
+
+    let n = cfg.n_samples as f64;
+    let mean = sum / n;
+    let variance = if cfg.n_samples > 1 {
+        ((sq_sum - (sum * sum / n)) / (n - 1.0)).max(0.0)
+    } else {
+        0.0
+    };
+    let stderr_mean = (variance / n).sqrt();
+    let analytic_mean = gaussian_uncertainty_analytic_mean();
+    let analytic_variance = gaussian_uncertainty_analytic_variance();
+    let mut warnings = Vec::new();
+
+    if cfg.n_samples < 1_024 {
+        warnings.push(
+            "moment estimates are noisy below roughly 1024 samples; use as smoke evidence only"
+                .to_string(),
+        );
+    }
+
+    GaussianUncertaintyMomentResult {
+        samples: cfg.n_samples,
+        dimensions: cfg.dimensions,
+        sampling: cfg.sampling,
+        mean,
+        variance,
+        stderr_mean,
+        analytic_mean,
+        analytic_variance,
+        mean_abs_error: (mean - analytic_mean).abs(),
+        variance_abs_error: (variance - analytic_variance).abs(),
+        mean_ci_95_low: mean - 1.96 * stderr_mean,
+        mean_ci_95_high: mean + 1.96 * stderr_mean,
+        warnings,
+    }
+}
+
 fn gaussian_uncertainty_response(z: &[f64]) -> f64 {
     z[0] * z[0] + 0.5 * z[1] + (0.1 * z[2]).exp()
 }
 
 fn gaussian_uncertainty_analytic_mean() -> f64 {
     1.0 + 0.005f64.exp()
+}
+
+fn gaussian_uncertainty_analytic_variance() -> f64 {
+    2.0 + 0.25 + (0.02f64.exp() - 0.01f64.exp())
 }
 
 pub fn black_scholes_european_call_price(s0: f64, k: f64, r: f64, sigma: f64, t: f64) -> f64 {
@@ -812,6 +907,49 @@ fn standard_normal_cdf(x: f64) -> f64 {
     let poly = (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t;
     let erf_approx = 1.0 - poly * (-z * z).exp();
     0.5 * (1.0 + sign * erf_approx)
+}
+
+fn discounted_lognormal_call_price(
+    log_mean: f64,
+    log_variance: f64,
+    k: f64,
+    r: f64,
+    t: f64,
+) -> f64 {
+    if log_variance == 0.0 {
+        return (-r * t).exp() * (log_mean.exp() - k).max(0.0);
+    }
+
+    let log_stddev = log_variance.sqrt();
+    let log_k = k.ln();
+    let d2 = (log_mean - log_k) / log_stddev;
+    let d1 = d2 + log_stddev;
+    (-r * t).exp()
+        * ((log_mean + 0.5 * log_variance).exp() * standard_normal_cdf(d1)
+            - k * standard_normal_cdf(d2))
+}
+
+fn sample_poisson(rng: &mut MonteCarloRng, mean: f64) -> usize {
+    debug_assert!(mean.is_finite());
+    debug_assert!(mean >= 0.0);
+
+    if mean == 0.0 {
+        return 0;
+    }
+
+    let u = rng.next_f64_open01();
+    let mut probability = (-mean).exp();
+    let mut cumulative = probability;
+    let mut k = 0usize;
+
+    while u > cumulative {
+        k += 1;
+        probability *= mean / k as f64;
+        cumulative += probability;
+        assert!(k < 4_096, "Poisson sampler did not converge");
+    }
+
+    k
 }
 
 fn build_analytic_pricing_comparison(
@@ -1194,6 +1332,101 @@ pub struct EuropeanCallResult {
     pub stderr: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EuropeanCallSweepScenario {
+    pub scenario_id: String,
+    pub s0: Option<f64>,
+    pub k: Option<f64>,
+    pub r: Option<f64>,
+    pub sigma: Option<f64>,
+    pub t: Option<f64>,
+    pub n_paths: Option<usize>,
+    pub n_steps: Option<usize>,
+    pub seed: Option<u64>,
+    pub sampling: Option<SamplingMethod>,
+    pub technique: Option<MonteCarloTechnique>,
+    pub method: Option<EuropeanCallMethod>,
+}
+
+impl Default for EuropeanCallSweepScenario {
+    fn default() -> Self {
+        Self {
+            scenario_id: "base".to_string(),
+            s0: None,
+            k: None,
+            r: None,
+            sigma: None,
+            t: None,
+            n_paths: None,
+            n_steps: None,
+            seed: None,
+            sampling: None,
+            technique: None,
+            method: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EuropeanCallParameterSweepConfig {
+    pub base_config: EuropeanCallConfig,
+    pub method: EuropeanCallMethod,
+    pub seed_stride: u64,
+    pub scenarios: Vec<EuropeanCallSweepScenario>,
+}
+
+impl Default for EuropeanCallParameterSweepConfig {
+    fn default() -> Self {
+        Self {
+            base_config: EuropeanCallConfig::default(),
+            method: EuropeanCallMethod::TerminalDistribution,
+            seed_stride: 10_000,
+            scenarios: vec![
+                EuropeanCallSweepScenario {
+                    scenario_id: "atm_base".to_string(),
+                    ..EuropeanCallSweepScenario::default()
+                },
+                EuropeanCallSweepScenario {
+                    scenario_id: "down_10pct".to_string(),
+                    s0: Some(90.0),
+                    ..EuropeanCallSweepScenario::default()
+                },
+                EuropeanCallSweepScenario {
+                    scenario_id: "high_vol".to_string(),
+                    sigma: Some(0.35),
+                    ..EuropeanCallSweepScenario::default()
+                },
+            ],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EuropeanCallParameterSweepRow {
+    pub scenario_index: usize,
+    pub scenario_id: String,
+    pub method: EuropeanCallMethod,
+    pub config: EuropeanCallConfig,
+    pub result: EuropeanCallResult,
+    pub analytic_price: f64,
+    pub signed_error_vs_black_scholes: f64,
+    pub abs_error_vs_black_scholes: f64,
+    pub abs_error_stderr_units: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EuropeanCallParameterSweepResult {
+    pub schema_version: String,
+    pub workload: PricingWorkloadFamily,
+    pub method: EuropeanCallMethod,
+    pub scenario_count: usize,
+    pub total_paths: usize,
+    pub base_seed: u64,
+    pub seed_stride: u64,
+    pub rows: Vec<EuropeanCallParameterSweepRow>,
+    pub warnings: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct HestonEuropeanCallConfig {
     pub s0: f64,
@@ -1229,6 +1462,39 @@ impl Default for HestonEuropeanCallConfig {
             seed: 42,
             n_threads: 0,
             technique: MonteCarloTechnique::Standard,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct MertonJumpDiffusionCallConfig {
+    pub s0: f64,
+    pub k: f64,
+    pub r: f64,
+    pub sigma: f64,
+    pub jump_intensity: f64,
+    pub jump_mean: f64,
+    pub jump_volatility: f64,
+    pub t: f64,
+    pub n_paths: usize,
+    pub seed: u64,
+    pub n_threads: usize,
+}
+
+impl Default for MertonJumpDiffusionCallConfig {
+    fn default() -> Self {
+        Self {
+            s0: 100.0,
+            k: 100.0,
+            r: 0.03,
+            sigma: 0.2,
+            jump_intensity: 0.4,
+            jump_mean: -0.08,
+            jump_volatility: 0.25,
+            t: 1.0,
+            n_paths: 100_000,
+            seed: 42,
+            n_threads: 0,
         }
     }
 }
@@ -1583,6 +1849,8 @@ pub struct BermudanPutResult {
 pub type DownAndOutCallResult = EuropeanCallResult;
 
 pub type HestonEuropeanCallResult = EuropeanCallResult;
+
+pub type MertonJumpDiffusionCallResult = EuropeanCallResult;
 
 pub type LookbackCallResult = EuropeanCallResult;
 
@@ -2757,6 +3025,76 @@ pub fn european_call_price_mc_cpu_with_method(
     }
 }
 
+pub fn price_european_call_parameter_sweep_cpu(
+    cfg: &EuropeanCallParameterSweepConfig,
+) -> EuropeanCallParameterSweepResult {
+    validate_european_call_parameter_sweep_config(cfg);
+
+    let mut rows = Vec::with_capacity(cfg.scenarios.len());
+    let mut total_paths = 0usize;
+    let mut warnings = Vec::new();
+
+    for (scenario_index, scenario) in cfg.scenarios.iter().enumerate() {
+        let scenario_cfg = apply_european_call_sweep_scenario(
+            cfg.base_config,
+            scenario,
+            scenario_index,
+            cfg.seed_stride,
+        );
+        validate_european_call_config(&scenario_cfg);
+
+        let method = scenario.method.unwrap_or(cfg.method);
+        let result = european_call_price_mc_cpu_with_method(&scenario_cfg, method);
+        let analytic_price = black_scholes_european_call_price(
+            scenario_cfg.s0,
+            scenario_cfg.k,
+            scenario_cfg.r,
+            scenario_cfg.sigma,
+            scenario_cfg.t,
+        );
+        let signed_error = result.price - analytic_price;
+        let abs_error = signed_error.abs();
+        let abs_error_stderr_units = if result.stderr > 0.0 {
+            abs_error / result.stderr
+        } else if abs_error == 0.0 {
+            0.0
+        } else {
+            f64::INFINITY
+        };
+        if abs_error_stderr_units > 4.0 {
+            warnings.push(format!(
+                "scenario '{}' is {:.3} standard errors from Black-Scholes reference",
+                scenario.scenario_id, abs_error_stderr_units
+            ));
+        }
+
+        total_paths += scenario_cfg.n_paths;
+        rows.push(EuropeanCallParameterSweepRow {
+            scenario_index,
+            scenario_id: scenario.scenario_id.clone(),
+            method,
+            config: scenario_cfg,
+            result,
+            analytic_price,
+            signed_error_vs_black_scholes: signed_error,
+            abs_error_vs_black_scholes: abs_error,
+            abs_error_stderr_units,
+        });
+    }
+
+    EuropeanCallParameterSweepResult {
+        schema_version: "european-call-sweep.v1".to_string(),
+        workload: PricingWorkloadFamily::EuropeanCall,
+        method: cfg.method,
+        scenario_count: rows.len(),
+        total_paths,
+        base_seed: cfg.base_config.seed,
+        seed_stride: cfg.seed_stride,
+        rows,
+        warnings,
+    }
+}
+
 pub fn heston_european_call_price_mc_cpu(
     cfg: &HestonEuropeanCallConfig,
 ) -> HestonEuropeanCallResult {
@@ -2767,6 +3105,87 @@ pub fn heston_european_call_price_mc_cpu(
         MonteCarloTechnique::Antithetic => heston_european_call_price_mc_antithetic(cfg),
         MonteCarloTechnique::ControlVariate => heston_european_call_price_mc_control_variate(cfg),
     }
+}
+
+pub fn merton_jump_diffusion_call_reference_price(
+    cfg: &MertonJumpDiffusionCallConfig,
+    max_terms: usize,
+    tail_tolerance: f64,
+) -> f64 {
+    validate_merton_jump_diffusion_call_config(cfg);
+    assert!(max_terms > 0, "max_terms must be > 0");
+    assert!(tail_tolerance >= 0.0, "tail_tolerance must be >= 0");
+
+    let lambda_t = cfg.jump_intensity * cfg.t;
+    if lambda_t == 0.0 {
+        return black_scholes_european_call_price(cfg.s0, cfg.k, cfg.r, cfg.sigma, cfg.t);
+    }
+
+    let jump_compensator =
+        cfg.jump_intensity * ((cfg.jump_mean + 0.5 * cfg.jump_volatility.powi(2)).exp() - 1.0);
+    let base_log_mean =
+        cfg.s0.ln() + (cfg.r - jump_compensator - 0.5 * cfg.sigma * cfg.sigma) * cfg.t;
+    let mut poisson_weight = (-lambda_t).exp();
+    let mut cumulative_weight = 0.0;
+    let mut price = 0.0;
+
+    for n_jumps in 0..max_terms {
+        let log_mean = base_log_mean + n_jumps as f64 * cfg.jump_mean;
+        let log_variance = cfg.sigma * cfg.sigma * cfg.t
+            + n_jumps as f64 * cfg.jump_volatility * cfg.jump_volatility;
+        price += poisson_weight
+            * discounted_lognormal_call_price(log_mean, log_variance, cfg.k, cfg.r, cfg.t);
+        cumulative_weight += poisson_weight;
+
+        if (1.0 - cumulative_weight).max(0.0) <= tail_tolerance {
+            break;
+        }
+
+        let next = n_jumps + 1;
+        poisson_weight *= lambda_t / next as f64;
+    }
+
+    price
+}
+
+pub fn merton_jump_diffusion_call_price_mc_cpu(
+    cfg: &MertonJumpDiffusionCallConfig,
+) -> MertonJumpDiffusionCallResult {
+    validate_merton_jump_diffusion_call_config(cfg);
+
+    let jump_compensator =
+        cfg.jump_intensity * ((cfg.jump_mean + 0.5 * cfg.jump_volatility.powi(2)).exp() - 1.0);
+    let drift_t = (cfg.r - jump_compensator - 0.5 * cfg.sigma * cfg.sigma) * cfg.t;
+    let diffusion_vol_t = cfg.sigma * cfg.t.sqrt();
+    let jump_mean_t = cfg.jump_intensity * cfg.t;
+    let discount = (-cfg.r * cfg.t).exp();
+
+    let thread_count = resolved_thread_count(cfg.n_threads);
+    let (payoff_sum, payoff_sq_sum) = if thread_count <= 1 || cfg.n_paths < thread_count * 2_000 {
+        simulate_merton_jump_diffusion_chunk(
+            cfg.seed,
+            cfg.n_paths,
+            cfg.s0,
+            cfg.k,
+            drift_t,
+            diffusion_vol_t,
+            jump_mean_t,
+            cfg.jump_mean,
+            cfg.jump_volatility,
+            discount,
+        )
+    } else {
+        simulate_merton_jump_diffusion_parallel(
+            cfg,
+            thread_count,
+            drift_t,
+            diffusion_vol_t,
+            jump_mean_t,
+            discount,
+        )
+    };
+
+    summarize_payoffs(cfg.n_paths, payoff_sum, payoff_sq_sum)
 }
 
 pub fn european_call_price_mc_cpu_terminal(cfg: &EuropeanCallConfig) -> EuropeanCallResult {
@@ -3000,6 +3419,74 @@ pub fn solve_arithmetic_asian_mlmc_tolerance_cpu(
         paths_per_level: allocation.paths_per_level.clone(),
         allocation,
         recommended_config,
+    }
+}
+
+pub fn compare_arithmetic_asian_mlmc_reference_cpu(
+    cfg: &ArithmeticAsianMlmcConfig,
+    reference_cfg: &ArithmeticAsianCallConfig,
+) -> MlmcReferenceComparison {
+    validate_arithmetic_asian_mlmc_config(cfg);
+    assert!(reference_cfg.n_paths > 0, "reference n_paths must be > 0");
+    assert!(reference_cfg.n_steps > 0, "reference n_steps must be > 0");
+
+    let estimate = arithmetic_asian_call_price_mlmc_cpu(cfg);
+    let reference = arithmetic_asian_call_price_mc_cpu(reference_cfg);
+    let error = estimate.price - reference.price;
+    let abs_error = error.abs();
+    let combined_stderr =
+        (estimate.stderr * estimate.stderr + reference.stderr * reference.stderr).sqrt();
+    let error_combined_stderr_units = if combined_stderr > 0.0 {
+        error / combined_stderr
+    } else if error == 0.0 {
+        0.0
+    } else {
+        f64::INFINITY.copysign(error)
+    };
+    let mut warnings = Vec::new();
+
+    if (cfg.s0 - reference_cfg.s0).abs() > f64::EPSILON
+        || (cfg.k - reference_cfg.k).abs() > f64::EPSILON
+        || (cfg.r - reference_cfg.r).abs() > f64::EPSILON
+        || (cfg.sigma - reference_cfg.sigma).abs() > f64::EPSILON
+        || (cfg.t - reference_cfg.t).abs() > f64::EPSILON
+    {
+        warnings.push(
+            "MLMC config and reference config do not share the same market parameters".to_string(),
+        );
+    }
+    if reference_cfg.n_steps
+        < mlmc_fine_steps(cfg.base_steps, cfg.refinement_factor, cfg.levels - 1)
+    {
+        warnings.push(
+            "reference step count is below the finest MLMC level; comparison includes time-discretization mismatch"
+                .to_string(),
+        );
+    }
+    if error_combined_stderr_units.abs() > 4.0 {
+        warnings.push(format!(
+            "MLMC estimate is {:.3} combined standard errors from the reference run",
+            error_combined_stderr_units.abs()
+        ));
+    }
+
+    MlmcReferenceComparison {
+        workload: PricingWorkloadFamily::ArithmeticAsianCall,
+        reference_name: "high_budget_arithmetic_asian_standard_mc".to_string(),
+        sampling: cfg.sampling,
+        levels: cfg.levels,
+        estimate_price: estimate.price,
+        estimate_stderr: estimate.stderr,
+        estimate_step_updates: estimate.total_step_updates,
+        reference_price: reference.price,
+        reference_stderr: reference.stderr,
+        reference_paths: reference_cfg.n_paths,
+        reference_steps: reference_cfg.n_steps,
+        error,
+        abs_error,
+        combined_stderr,
+        error_combined_stderr_units,
+        warnings,
     }
 }
 
@@ -4520,6 +5007,80 @@ fn bump_maturity(t: f64) -> f64 {
     (1.0_f64 / 365.0).min(t * 0.25)
 }
 
+fn validate_european_call_config(cfg: &EuropeanCallConfig) {
+    assert!(cfg.n_paths > 0, "n_paths must be > 0");
+    assert!(cfg.n_steps > 0, "n_steps must be > 0");
+    assert!(cfg.s0 > 0.0, "s0 must be > 0");
+    assert!(cfg.k > 0.0, "k must be > 0");
+    assert!(cfg.sigma > 0.0, "sigma must be > 0");
+    assert!(cfg.t > 0.0, "t must be > 0");
+}
+
+fn validate_european_call_parameter_sweep_config(cfg: &EuropeanCallParameterSweepConfig) {
+    validate_european_call_config(&cfg.base_config);
+    assert!(
+        !cfg.scenarios.is_empty(),
+        "parameter sweep must contain at least one scenario"
+    );
+
+    for (idx, scenario) in cfg.scenarios.iter().enumerate() {
+        assert!(
+            !scenario.scenario_id.trim().is_empty(),
+            "scenario_id must not be empty"
+        );
+        assert!(
+            !cfg.scenarios[..idx]
+                .iter()
+                .any(|seen| seen.scenario_id == scenario.scenario_id),
+            "scenario_id values must be unique"
+        );
+
+        let scenario_cfg =
+            apply_european_call_sweep_scenario(cfg.base_config, scenario, idx, cfg.seed_stride);
+        validate_european_call_config(&scenario_cfg);
+    }
+}
+
+fn apply_european_call_sweep_scenario(
+    mut base: EuropeanCallConfig,
+    scenario: &EuropeanCallSweepScenario,
+    scenario_index: usize,
+    seed_stride: u64,
+) -> EuropeanCallConfig {
+    if let Some(value) = scenario.s0 {
+        base.s0 = value;
+    }
+    if let Some(value) = scenario.k {
+        base.k = value;
+    }
+    if let Some(value) = scenario.r {
+        base.r = value;
+    }
+    if let Some(value) = scenario.sigma {
+        base.sigma = value;
+    }
+    if let Some(value) = scenario.t {
+        base.t = value;
+    }
+    if let Some(value) = scenario.n_paths {
+        base.n_paths = value;
+    }
+    if let Some(value) = scenario.n_steps {
+        base.n_steps = value;
+    }
+    base.seed = scenario.seed.unwrap_or_else(|| {
+        base.seed
+            .wrapping_add(seed_stride.wrapping_mul(scenario_index as u64))
+    });
+    if let Some(value) = scenario.sampling {
+        base.sampling = value;
+    }
+    if let Some(value) = scenario.technique {
+        base.technique = value;
+    }
+    base
+}
+
 fn validate_lookback_call_config(cfg: &LookbackCallConfig) {
     assert!(cfg.n_paths > 0, "n_paths must be > 0");
     assert!(cfg.n_steps > 0, "n_steps must be > 0");
@@ -4539,6 +5100,16 @@ fn validate_heston_european_call_config(cfg: &HestonEuropeanCallConfig) {
     assert!(cfg.theta >= 0.0, "theta must be >= 0");
     assert!(cfg.vol_of_vol >= 0.0, "vol_of_vol must be >= 0");
     assert!((-1.0..=1.0).contains(&cfg.rho), "rho must be in [-1, 1]");
+    assert!(cfg.t > 0.0, "t must be > 0");
+}
+
+fn validate_merton_jump_diffusion_call_config(cfg: &MertonJumpDiffusionCallConfig) {
+    assert!(cfg.n_paths > 0, "n_paths must be > 0");
+    assert!(cfg.s0 > 0.0, "s0 must be > 0");
+    assert!(cfg.k > 0.0, "k must be > 0");
+    assert!(cfg.sigma >= 0.0, "sigma must be >= 0");
+    assert!(cfg.jump_intensity >= 0.0, "jump_intensity must be >= 0");
+    assert!(cfg.jump_volatility >= 0.0, "jump_volatility must be >= 0");
     assert!(cfg.t > 0.0, "t must be > 0");
 }
 
@@ -5580,6 +6151,54 @@ fn simulate_terminal_parallel(
     (payoff_sum, payoff_sq_sum)
 }
 
+fn simulate_merton_jump_diffusion_parallel(
+    cfg: &MertonJumpDiffusionCallConfig,
+    thread_count: usize,
+    drift_t: f64,
+    diffusion_vol_t: f64,
+    jump_mean_t: f64,
+    discount: f64,
+) -> (f64, f64) {
+    let base_chunk = cfg.n_paths / thread_count;
+    let remainder = cfg.n_paths % thread_count;
+
+    let mut handles = Vec::with_capacity(thread_count);
+    for idx in 0..thread_count {
+        let n_paths_chunk = base_chunk + usize::from(idx < remainder);
+        let seed = derive_chunk_seed(cfg.seed, idx as u64);
+        let s0 = cfg.s0;
+        let k = cfg.k;
+        let jump_mean = cfg.jump_mean;
+        let jump_volatility = cfg.jump_volatility;
+        handles.push(thread::spawn(move || {
+            simulate_merton_jump_diffusion_chunk(
+                seed,
+                n_paths_chunk,
+                s0,
+                k,
+                drift_t,
+                diffusion_vol_t,
+                jump_mean_t,
+                jump_mean,
+                jump_volatility,
+                discount,
+            )
+        }));
+    }
+
+    let mut payoff_sum = 0.0;
+    let mut payoff_sq_sum = 0.0;
+    for handle in handles {
+        let (chunk_sum, chunk_sq_sum) = handle
+            .join()
+            .expect("CPU Merton jump-diffusion worker thread panicked");
+        payoff_sum += chunk_sum;
+        payoff_sq_sum += chunk_sq_sum;
+    }
+
+    (payoff_sum, payoff_sq_sum)
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct ControlVariateMoments {
     pub(crate) sample_count: usize,
@@ -5781,6 +6400,41 @@ fn simulate_terminal_chunk(
         MonteCarloTechnique::ControlVariate => {
             unreachable!("control variate terminal path uses dedicated accumulator kernel");
         }
+    }
+
+    (payoff_sum, payoff_sq_sum)
+}
+
+fn simulate_merton_jump_diffusion_chunk(
+    seed: u64,
+    n_paths: usize,
+    s0: f64,
+    k: f64,
+    drift_t: f64,
+    diffusion_vol_t: f64,
+    jump_mean_t: f64,
+    jump_mean: f64,
+    jump_volatility: f64,
+    discount: f64,
+) -> (f64, f64) {
+    let mut rng = MonteCarloRng::new(seed);
+    let mut payoff_sum = 0.0;
+    let mut payoff_sq_sum = 0.0;
+    let log_s0 = s0.ln();
+
+    for _ in 0..n_paths {
+        let diffusion_shock = diffusion_vol_t * rng.standard_normal();
+        let jump_count = sample_poisson(&mut rng, jump_mean_t);
+        let jump_shock = if jump_count == 0 {
+            0.0
+        } else {
+            jump_count as f64 * jump_mean
+                + jump_volatility * (jump_count as f64).sqrt() * rng.standard_normal()
+        };
+        let s_t = (log_s0 + drift_t + diffusion_shock + jump_shock).exp();
+        let payoff = (s_t - k).max(0.0) * discount;
+        payoff_sum += payoff;
+        payoff_sq_sum += payoff * payoff;
     }
 
     (payoff_sum, payoff_sq_sum)

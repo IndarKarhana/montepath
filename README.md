@@ -1,10 +1,14 @@
-# mc-library
+# MontePath
 
-Agent-native Monte Carlo runtime with CPU, NVIDIA CUDA, and Apple Metal execution paths.
+`montepath` is an alpha-stage, agent-native Monte Carlo runtime with Rust-backed CPU execution,
+Python APIs, benchmark artifacts, and MCP-compatible agent tools.
 
 ## Current Stage
 
-This repository is in active build-out.
+This repository is ready for controlled public alpha use. It is suitable for
+agent-native Monte Carlo experiments, reproducible CPU workloads, and
+benchmark-audited method comparison. It is not yet a general production
+replacement for mature scientific or quantitative stacks.
 
 - architecture and design docs are in `docs/`
 - project-level agent instructions are in `AGENTS.md`
@@ -12,6 +16,8 @@ This repository is in active build-out.
 - core engineering rules are in `docs/repository-rules.md`
 - roadmap is in `roadmap.md`
 - Rust workspace scaffolding is in `crates/`
+- public alpha positioning is in `docs/public-alpha.md`
+- uv and MCP install guidance is in `docs/uv-and-agent-install.md`
 
 ## Core Principles
 
@@ -27,34 +33,82 @@ This repository is in active build-out.
 - `crates/mc-schema`: schema types, diagnostics, compatibility, and validation
 - `crates/mc-core`: planner interfaces, backend contract, CPU runtime, and execution planning
 - `crates/mc-bench`: benchmark harness and benchmark result schema
-- `python/mc_library`: Python-first configs, pricing helpers, benchmark helpers, and method recommendations
+- `python/montepath`: Python-first configs, pricing helpers, benchmark helpers, and method recommendations
 - `docs/site`: quickstarts, API reference, benchmark interpretation, and migration notes
 
 ## Python Quickstart
 
+With `uv`, after the package is published:
+
 ```bash
-python -m pip install -e .
+uv pip install montepath
+```
+
+Inside a `uv` project:
+
+```bash
+uv add montepath
+```
+
+From a checkout:
+
+```bash
+uv pip install -e .
 ```
 
 ```python
-from mc_library import EuropeanCallConfig, price_european_call, price_european_call_greeks
+from montepath import (
+    EuropeanCallConfig,
+    native_runtime_status,
+    price_european_call,
+    price_european_call_greeks,
+)
 
 cfg = EuropeanCallConfig(n_paths=20_000, n_steps=64, seed=42)
 price = price_european_call(cfg)
 greeks = price_european_call_greeks(cfg)
 
+print(native_runtime_status().as_dict())
 print(price.explain())
 print(price.manifest)
 print(greeks.greeks)
 ```
 
 The Python helpers are dependency-free reference UX helpers. Timing claims
-remain tied to Rust benchmark artifacts.
+remain tied to Rust benchmark artifacts. Use `native_runtime_status()` to check
+whether compiled Rust execution is installed in the active Python environment.
+
+The Python package also exposes stable native-bridge configs and result
+surfaces for the Rust-only workload families: lookback, basket, American put,
+Bermudan put, Heston, Merton jump-diffusion, Gaussian UQ moments, arithmetic
+Asian MLMC/MLQMC, and European parameter sweeps. Those helpers validate
+configuration locally, then require the installed `montepath._native` module
+with the matching function; they do not silently fall back to slow or
+unsupported behavior.
+
+## Agent And MCP Usage
+
+Installed distributions include the `montepath-mcp` console entry point.
+
+After PyPI publication, agents can launch it through `uvx`:
+
+```bash
+uvx --from montepath montepath-mcp
+```
+
+From a local checkout:
+
+```bash
+uv run montepath-mcp
+```
+
+See `docs/uv-and-agent-install.md` and `docs/agent-tooling.md` for MCP client
+configuration, schemas, execution limits, and failure policy.
 
 ## Agent Tool Example
 
 ```python
-from mc_library import agent_execute, agent_plan, agent_tool_manifest
+from montepath import agent_execute, agent_plan, agent_tool_manifest
 
 print(agent_tool_manifest()["schema_version"])
 
@@ -114,7 +168,7 @@ The CPU runtime now exposes:
 - arithmetic Asian multilevel Monte Carlo via `ArithmeticAsianMlmcConfig` and `arithmetic_asian_call_price_mlmc_cpu()`
 - structured Greek reports via `GreekReport`, with bump-and-revalue support across current CPU workloads and European pathwise / likelihood-ratio estimators where valid
 - a machine-readable method capability catalog via `monte_carlo_method_capabilities()`
-- method recommendation via `recommend_method()` in Rust and `mc_library.recommend_method()` in Python
+- method recommendation via `recommend_method()` in Rust and `montepath.recommend_method()` in Python
 - multiple workload families:
   - European call
   - arithmetic Asian call
@@ -249,12 +303,12 @@ From the latest release benchmark run:
 
 Current QMC generation scoreboard from the same release run:
 
-- Rust scrambled Sobol normal generation: `74.437 ms`
-- SciPy scrambled Sobol normal generation: `115.477 ms`
-- Rust randomized Halton normal generation: `56.383 ms`
-- SciPy randomized Halton normal generation: `145.888 ms`
-- Rust Latin hypercube normal generation: `39.611 ms`
-- SciPy Latin hypercube normal generation: `195.198 ms`
+- Rust scrambled Sobol normal generation: `78.868 ms`
+- SciPy scrambled Sobol normal generation: `115.809 ms`
+- Rust randomized Halton normal generation: `57.871 ms`
+- SciPy randomized Halton normal generation: `141.066 ms`
+- Rust Latin hypercube normal generation: `40.679 ms`
+- SciPy Latin hypercube normal generation: `195.462 ms`
 
 Current QMC pricing-quality and UQ scoreboard from the same release run:
 
@@ -271,6 +325,7 @@ Current QMC pricing-quality and UQ scoreboard from the same release run:
 - Gaussian UQ randomized Halton abs error vs analytic mean: `0.000056`
 - Gaussian UQ Latin hypercube abs error vs analytic mean: `0.000039`
 - Gaussian UQ scrambled Sobol abs error vs analytic mean: `0.000043`
+- Gaussian UQ Latin hypercube abs error vs analytic variance: `0.002484`
 
 Current quality ratios from the same release run:
 
@@ -279,6 +334,8 @@ Current quality ratios from the same release run:
 - arithmetic Asian control-variate stderr ratio: `0.607`
 - arithmetic Asian MLMC stderr ratio: `2.013`
 - arithmetic Asian MLQMC stderr ratio: `0.418`
+- arithmetic Asian MLMC abs error vs high-budget standard MC reference: `0.022778`
+- arithmetic Asian MLQMC abs error vs high-budget standard MC reference: `0.002080`
 - randomized Halton European control-variate stderr ratio: `0.411`
 - Latin hypercube European control-variate stderr ratio: `0.410`
 - down-and-out control-variate stderr ratio: `0.418`
@@ -295,23 +352,20 @@ What we can honestly claim now:
 
 - CPU performance is strong against the available NumPy and Numba baselines on the tracked fair European workload.
 - Native Apple Metal is materially faster than our CPU baseline on the tracked European, arithmetic Asian, and down-and-out workloads.
-- The library has better breadth than before, with four option workload families including a two-asset basket call, one non-option Gaussian UQ workload, randomized Halton, Latin hypercube, scrambled Sobol, and Brownian-bridge path construction. Direct QMC normal generation now beats the available SciPy QMC baselines on the tracked Sobol, Halton, and Latin-hypercube rows, and batched path-level filling has materially reduced structured-pricing overhead.
+- The library has better breadth than before, with early-exercise LSM, Heston, Merton jump diffusion, two-asset basket, typed European parameter sweeps, Gaussian UQ moment checks, randomized Halton, Latin hypercube, scrambled Sobol, and Brownian-bridge path construction. Direct QMC normal generation beats the available SciPy QMC baselines on the tracked release Sobol, Halton, and Latin-hypercube rows.
 - European QMC now has an analytic realized-error scoreboard against Black-Scholes, so accuracy claims for that workload are no longer limited to standard-error ratios.
-- MLMC and MLQMC foundations are live for arithmetic Asian calls with per-level estimator metadata, pilot-based allocation tuning, adaptive tolerance planning, and replicated Sobol scrambling. Adaptive MLMC is now a very fast CPU reference path on the tracked benchmark but needs better default calibration, while replicated MLQMC is faster than Asian step-wise and materially lower-error in the current run.
+- MLMC and MLQMC foundations are live for arithmetic Asian calls with per-level estimator metadata, pilot-based allocation tuning, adaptive tolerance planning, replicated Sobol scrambling, and first realized-error calibration rows.
 
 What we should not overclaim yet:
 
 - structured sampling generation is now competitive and pricing overhead is much lower, but full structured-pricing paths still trail the pseudorandom CPU baseline; realized-error wins are currently benchmark evidence for the European analytic-reference case, not a universal guarantee
-- MLMC and MLQMC are CPU-reference only, and their tolerance planning is pilot-estimated rather than broadly calibrated across workload families
-- native CUDA execution is not implemented yet
+- MLMC and MLQMC are CPU-reference only, and their tolerance planning is calibrated for the arithmetic Asian path but not yet broadly calibrated across workload families
+- native CUDA execution is not implemented yet and is deferred to a later accelerator-focused version
+- the Python UX helpers remain stable reference surfaces, and installed wheels now include a Rust-backed `montepath._native` CPU extension for the current native bridge functions; native Metal wheels and CUDA execution remain future work
 - planner calibration is improving, but `87.5%` measured local accuracy is not broad production-grade backend intelligence yet
 
 ## Next Steps
 
-- broaden Metal beyond the current GBM option family
-- broaden QMC realized-error studies beyond the first European Black-Scholes reference where analytic or semi-analytic references exist
-- calibrate MLMC and MLQMC tolerance planning against realized estimator error across more workloads
-- keep calibrating planner recommendations from measured backend winners across more workload classes
-- expand competitor matrix to JAX/CuPy/PyTorch where environment allows
-- extend CI from CPU validation to native hardware validation once dedicated runners exist
-- keep native CUDA launch deferred while CPU, Metal, and multilevel-method quality are the active focus
+- keep native CUDA launch deferred to the later accelerator-focused version
+- continue hardware-runner work for native CUDA/Metal validation and accelerator competitor artifacts
+- broaden calibrated MLMC/MLQMC and structured-sampling evidence only when backed by release artifacts

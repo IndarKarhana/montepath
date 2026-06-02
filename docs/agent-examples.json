@@ -38,7 +38,7 @@
     },
     "manifest_core": {
       "schema_version": "agent-run.v1",
-      "tool": "mc.plan",
+      "tool": "montepath.plan",
       "workload": "european_call",
       "seed": 5,
       "backend": "python_reference",
@@ -76,7 +76,7 @@
     },
     "manifest_core": {
       "schema_version": "agent-run.v1",
-      "tool": "mc.execute",
+      "tool": "montepath.execute",
       "workload": "european_call",
       "seed": 5,
       "backend": "python_reference",

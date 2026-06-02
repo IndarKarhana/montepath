@@ -442,5 +442,5 @@ fn compile_cuda_kernel_to_ptx(plan: &ExecutionPlan) -> Result<PathBuf, String> {
 }
 
 fn staged_cuda_output_dir() -> PathBuf {
-    std::env::temp_dir().join("mc-library").join("cuda")
+    std::env::temp_dir().join("montepath").join("cuda")
 }

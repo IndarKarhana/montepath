@@ -2,13 +2,14 @@
 
 ## Current Python Surface
 
-The current Python package is dependency-free and pure Python for UX helpers.
-It exposes typed configs, pricing helpers, Greek helpers, benchmark helpers, and
-method recommendations.
+The current Python package exposes dependency-free UX helpers plus an optional
+installed Rust-backed CPU extension at `montepath._native` when installed from
+a built wheel. It exposes typed configs, pricing helpers, Greek helpers,
+benchmark helpers, and method recommendations.
 
-## Future Compiled Bindings
+## Compiled Bindings
 
-Compiled bindings should preserve these concepts:
+Compiled bindings preserve these concepts:
 
 - immutable typed configs
 - structured result objects
@@ -17,9 +18,9 @@ Compiled bindings should preserve these concepts:
 - `reproduce()`
 - explicit `McConfigurationError` codes
 
-Timing-sensitive workflows should migrate to compiled bindings when they land.
-The pure-Python helpers should remain useful for examples, testing, and agent
-preflight.
+Timing-sensitive CPU workflows should use the native bridge functions when
+`native_runtime_status().available` is true. The pure-Python helpers remain
+useful for examples, testing, and agent preflight.
 
 ## Stability Expectations
 
@@ -27,4 +28,3 @@ preflight.
 - Result manifests may add fields, but existing keys should not be removed
   without migration notes.
 - Unsupported accelerator behavior must remain explicit.
-
