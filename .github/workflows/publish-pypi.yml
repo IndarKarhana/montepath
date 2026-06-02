@@ -41,9 +41,9 @@ jobs:
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             manylinux: "2014"
-          - name: macos-aarch64
+          - name: macos-universal2
             os: macos-14
-            target: aarch64-apple-darwin
+            target: universal2-apple-darwin
             manylinux: auto
           - name: windows-x64
             os: windows-latest
@@ -88,4 +88,4 @@ jobs:
           merge-multiple: true
 
       - name: Publish distributions to PyPI
-        run: uv publish --trusted-publishing always dist/*
+        run: uv publish --trusted-publishing always --check-url https://pypi.org/simple/ dist/*

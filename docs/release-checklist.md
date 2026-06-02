@@ -80,10 +80,10 @@ Use the benchmark table format requested by project convention: include
 Preferred publishing path is PyPI trusted publishing from
 `.github/workflows/publish-pypi.yml`. Create a GitHub release or run the
 workflow manually after the PyPI pending publisher is configured. The workflow
-builds the source distribution plus manylinux x86_64, macOS arm64, and Windows
-x64 wheels before uploading through trusted publishing. macOS Intel is tracked
-as a follow-up wheel target because hosted Intel runner availability can delay
-the release path.
+builds the source distribution plus manylinux x86_64, macOS universal2, and
+Windows x64 wheels before uploading through trusted publishing. The publish step
+checks PyPI for existing files so trusted-publishing reruns can upload missing
+supplemental wheels without republishing artifacts that already exist.
 
 If publishing manually, use a scoped PyPI token from a verified environment and
 publish only after the checks above pass:
