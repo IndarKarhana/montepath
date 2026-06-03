@@ -10,7 +10,12 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from .native import DEFAULT_NATIVE_MODULE, NativeRuntimeStatus, native_runtime_status
+from .native import (
+    DEFAULT_NATIVE_MODULE,
+    NativeRuntimeStatus,
+    native_runtime_status,
+    require_native_runtime,
+)
 from .pricing import (
     AmericanPutConfig,
     ArithmeticAsianCallConfig,
@@ -68,6 +73,12 @@ METAL_WORKLOADS = {
     "european_call",
     "arithmetic_asian_call",
     "down_and_out_call",
+}
+
+METAL_FUNCTION_BY_WORKLOAD = {
+    "european_call": "price_european_call_metal",
+    "arithmetic_asian_call": "price_arithmetic_asian_call_metal",
+    "down_and_out_call": "price_down_and_out_call_metal",
 }
 
 BACKEND_ALIASES = {
@@ -157,15 +168,20 @@ def backend_capabilities(
         for workload, function_name in NATIVE_FUNCTION_BY_WORKLOAD.items()
         if function_name in native_status.supported_functions
     )
+    supported_metal_workloads = tuple(
+        workload
+        for workload, function_name in METAL_FUNCTION_BY_WORKLOAD.items()
+        if function_name in native_status.supported_functions
+    )
     cpu_status = "available" if native_status.available else "unavailable"
     cpu_reason = None if native_status.available else native_status.reason
 
-    metal_status = "unsupported"
-    metal_reason = (
-        "native Metal execution exists in Rust feature-gated paths, but the PyPI "
-        "Python native bridge does not expose apple_metal execution yet"
+    metal_status = "available" if supported_metal_workloads else "unsupported"
+    metal_reason = None if supported_metal_workloads else (
+        "native Metal execution requires a montepath._native build exposing "
+        "price_*_metal bridge functions"
     )
-    if not metal_host:
+    if not metal_host and not supported_metal_workloads:
         metal_status = "unavailable"
         metal_reason = "Apple Metal requires an Apple Silicon macOS host"
 
@@ -198,14 +214,21 @@ def backend_capabilities(
             backend_id="apple_metal",
             display_name="Apple Metal native runtime",
             status=metal_status,
-            execution_mode="rust_feature_gated",
-            workloads=tuple(sorted(METAL_WORKLOADS)),
-            agent_tool_ready=False,
+            execution_mode=(
+                "native_extension_metal"
+                if supported_metal_workloads
+                else "rust_feature_gated"
+            ),
+            workloads=tuple(sorted(supported_metal_workloads or METAL_WORKLOADS)),
+            agent_tool_ready=bool(supported_metal_workloads),
             deterministic="deterministic for same config, seed, Metal runtime, and device class where native Rust path is enabled",
             reason=metal_reason,
             warnings=(
-                "Use Rust hardware workflow artifacts before making Metal performance claims.",
+                "Use hardware benchmark artifacts before making Metal performance claims.",
+                "Native Metal supports the current pseudorandom GBM option family; unsupported sampling fails explicitly.",
             ),
+            native_module=native_status.module_name,
+            version=native_status.version,
         ),
         BackendCapability(
             backend_id="nvidia_cuda",
@@ -245,6 +268,12 @@ def select_backend(
         and native_function
         and native_function in native_status.supported_functions
     )
+    metal_function = METAL_FUNCTION_BY_WORKLOAD.get(workload)
+    metal_ok = bool(
+        native_status.available
+        and metal_function
+        and metal_function in native_status.supported_functions
+    )
 
     if normalized == "auto":
         if native_ok:
@@ -254,6 +283,18 @@ def select_backend(
                 execution_mode="native_extension",
                 workload=workload,
                 agent_tool_ready=True,
+                native_module=native_module,
+            )
+        if metal_ok:
+            return BackendSelection(
+                ok=True,
+                backend_id="apple_metal",
+                execution_mode="native_extension_metal",
+                workload=workload,
+                agent_tool_ready=True,
+                warnings=(
+                    "compiled CPU native runtime unavailable for this workload; using explicit Metal native bridge",
+                ),
                 native_module=native_module,
             )
         if workload in PYTHON_REFERENCE_WORKLOADS:
@@ -311,12 +352,38 @@ def select_backend(
         )
 
     if normalized == "apple_metal":
+        if workload not in METAL_WORKLOADS:
+            return _selection_error(
+                "apple_metal",
+                workload,
+                "MC_BACKEND_METAL_WORKLOAD_UNSUPPORTED",
+                f"Apple Metal Python bridge does not support workload {workload!r}",
+                f"Use one of: {', '.join(sorted(METAL_WORKLOADS))}",
+            )
+        if metal_ok:
+            return BackendSelection(
+                ok=True,
+                backend_id="apple_metal",
+                execution_mode="native_extension_metal",
+                workload=workload,
+                agent_tool_ready=True,
+                native_module=native_module,
+            )
+        if not native_status.available:
+            return _selection_error(
+                "apple_metal",
+                workload,
+                "MC_BACKEND_METAL_NATIVE_UNAVAILABLE",
+                native_status.reason
+                or "compiled native runtime module with Metal bridge is not installed",
+                "Install or build montepath._native with the metal-native feature on Apple Silicon macOS.",
+            )
         return _selection_error(
             "apple_metal",
             workload,
-            "MC_BACKEND_METAL_NOT_EXPOSED",
-            "Apple Metal execution is benchmarked in Rust feature-gated paths but is not exposed through the PyPI Python bridge yet",
-            "Use backend='cpu_native' or backend='auto' from Python; run the Metal hardware workflow for Metal benchmark artifacts.",
+            "MC_BACKEND_METAL_FUNCTION_MISSING",
+            f"Installed native module does not expose required Metal function {metal_function!r}",
+            "Build the native extension with the metal-native feature or select backend='cpu_native'.",
         )
 
     if normalized == "nvidia_cuda":
@@ -350,6 +417,7 @@ def validate_workload_request(
     diagnostics = _validate_config(workload, payload)
     selection = select_backend(workload, backend=backend, native_module=native_module)
     diagnostics.extend(selection.diagnostics)
+    diagnostics.extend(_validate_backend_policy(workload, payload, selection))
     return {
         "ok": not diagnostics,
         "schema_version": "montepath-validation.v1",
@@ -426,7 +494,7 @@ def production_status(native_module: str = DEFAULT_NATIVE_MODULE) -> dict[str, A
         "mcp_ready": True,
         "production_notes": [
             "CPU native execution is the production Python fast path when montepath._native is installed.",
-            "Apple Metal is validated through Rust feature-gated hardware workflows, not the PyPI Python bridge yet.",
+            "Apple Metal Python execution is available when the native module exposes price_*_metal functions; otherwise Metal remains a feature-gated Rust/hardware workflow path.",
             "CUDA native execution remains deferred and must not be claimed as production support.",
             "Benchmark claims should be tied to release artifacts produced on target hardware.",
         ],
@@ -509,6 +577,91 @@ def benchmark_report(
             "Unavailable competitor rows are kept explicit rather than hidden.",
         ],
         "diagnostics": [],
+    }
+
+
+def numerical_validation_report(
+    reference_artifact: str = "benchmarks/reference-fixtures.json",
+    *,
+    capability_catalog: str = "docs/product-model-capability-catalog.json",
+    repo_root: str | Path | None = None,
+) -> dict[str, Any]:
+    """Return committed numerical reference and caveat metadata."""
+
+    root = Path(repo_root) if repo_root is not None else _repo_root()
+    reference_path = root / reference_artifact
+    catalog_path = root / capability_catalog
+    diagnostics: list[dict[str, str]] = []
+
+    fixtures: list[Mapping[str, Any]] = []
+    if reference_path.exists():
+        reference_payload = json.loads(reference_path.read_text())
+        raw_fixtures = reference_payload.get("fixtures", ())
+        if isinstance(raw_fixtures, list):
+            fixtures = [item for item in raw_fixtures if isinstance(item, Mapping)]
+    else:
+        diagnostics.append(
+            {
+                "code": "MC_VALIDATION_FIXTURES_MISSING",
+                "message": f"Reference fixture artifact {reference_artifact!r} was not found",
+                "suggestion": "Run from a repository checkout or pass repo_root to committed fixture artifacts.",
+            }
+        )
+
+    caveat_workloads: list[dict[str, Any]] = []
+    if catalog_path.exists():
+        catalog_payload = json.loads(catalog_path.read_text())
+        for item in _catalog_items(catalog_payload):
+            status = str(item.get("reference_status", ""))
+            caveat = item.get("reference_caveat")
+            if "no_trusted" in status or caveat:
+                caveat_workloads.append(
+                    {
+                        "workload_id": item.get("workload_id"),
+                        "reference_status": status or None,
+                        "reference_caveat": caveat,
+                    }
+                )
+    else:
+        diagnostics.append(
+            {
+                "code": "MC_VALIDATION_CATALOG_MISSING",
+                "message": f"Capability catalog {capability_catalog!r} was not found",
+                "suggestion": "Pass repo_root to a checkout containing docs/product-model-capability-catalog.json.",
+            }
+        )
+
+    trusted_fixture_ids = [
+        str(item.get("fixture_id"))
+        for item in fixtures
+        if item.get("fixture_id") is not None
+    ]
+    reference_sources = sorted(
+        {
+            str(item.get("reference_source"))
+            for item in fixtures
+            if item.get("reference_source") is not None
+        }
+    )
+    return {
+        "schema_version": "montepath-numerical-validation.v1",
+        "reference_artifact": reference_artifact,
+        "capability_catalog": capability_catalog,
+        "fixtures_available": reference_path.exists(),
+        "fixture_count": len(fixtures),
+        "trusted_fixture_ids": trusted_fixture_ids,
+        "reference_sources": reference_sources,
+        "caveat_workloads": caveat_workloads,
+        "tolerance_policy": {
+            "stochastic_pricing": "compare against trusted references in stderr units when available",
+            "early_exercise": "use CRR/binomial reference grids and lower-bound checks where committed",
+            "benchmark_claims": "tie timing and quality claims to committed or release-generated artifacts",
+        },
+        "diagnostics": diagnostics,
+        "notes": [
+            "This report summarizes committed validation metadata; it does not execute a numerical test run.",
+            "Workloads without trusted fixtures remain explicit caveats for users and agents.",
+        ],
     }
 
 
@@ -618,6 +771,26 @@ def _validate_config(workload: str, config: Mapping[str, Any]) -> list[dict[str,
     return diagnostics
 
 
+def _validate_backend_policy(
+    workload: str, config: Mapping[str, Any], selection: BackendSelection
+) -> list[dict[str, str]]:
+    if not selection.ok or selection.backend_id != "apple_metal":
+        return []
+    sampling = str(config.get("sampling", "pseudorandom")).strip().lower().replace("-", "_")
+    if sampling and sampling != "pseudorandom":
+        return [
+            {
+                "code": "MC_BACKEND_METAL_SAMPLING_UNSUPPORTED",
+                "message": (
+                    "Apple Metal Python bridge currently supports pseudorandom "
+                    f"sampling only, not {sampling!r}"
+                ),
+                "suggestion": "Use sampling='pseudorandom' for Metal or select backend='cpu_native'.",
+            }
+        ]
+    return []
+
+
 def _execute_selected_workload(
     workload: str,
     config: Mapping[str, Any],
@@ -625,6 +798,9 @@ def _execute_selected_workload(
     backend_id: str,
     native_module: str,
 ) -> dict[str, Any]:
+    if backend_id == "apple_metal":
+        return _execute_metal_workload(workload, config, native_module)
+
     native_arg = native_module if backend_id == "cpu_native" else None
     if workload == "european_call":
         result = price_european_call(**config, native_module=native_arg)
@@ -675,6 +851,82 @@ def _execute_selected_workload(
     return _pricing_result_payload(result, backend_id)
 
 
+def _execute_metal_workload(
+    workload: str, config: Mapping[str, Any], native_module: str
+) -> dict[str, Any]:
+    function_name = METAL_FUNCTION_BY_WORKLOAD.get(workload)
+    if function_name is None:
+        raise ProductionCapabilityError(
+            _selection_error(
+                "apple_metal",
+                workload,
+                "MC_BACKEND_METAL_WORKLOAD_UNSUPPORTED",
+                f"Apple Metal Python bridge does not support workload {workload!r}",
+                f"Use one of: {', '.join(sorted(METAL_WORKLOADS))}",
+            )
+        )
+    module = require_native_runtime(native_module)
+    function = getattr(module, function_name, None)
+    if not callable(function):
+        raise ProductionCapabilityError(
+            _selection_error(
+                "apple_metal",
+                workload,
+                "MC_BACKEND_METAL_FUNCTION_MISSING",
+                f"Installed native module does not expose required Metal function {function_name!r}",
+                "Build the native extension with the metal-native feature or select backend='cpu_native'.",
+            )
+        )
+    try:
+        raw = function(dict(config))
+    except Exception as exc:
+        raise ProductionCapabilityError(
+            _selection_error(
+                "apple_metal",
+                workload,
+                "MC_BACKEND_METAL_EXECUTION_FAILED",
+                f"native Metal execution failed: {exc.__class__.__name__}: {exc}",
+                "Check backend_capabilities(), requested sampling, and local Metal runtime availability.",
+            )
+        ) from exc
+    if not isinstance(raw, Mapping):
+        raise ProductionCapabilityError(
+            _selection_error(
+                "apple_metal",
+                workload,
+                "MC_NATIVE_RESULT",
+                f"native Metal function {function_name!r} returned an unsupported result shape",
+                "Return a mapping containing price, stderr, manifest, and optional warnings.",
+            )
+        )
+    price = float(raw["price"])
+    stderr = float(raw.get("stderr", raw.get("standard_error", 0.0)))
+    raw_manifest = raw.get("manifest") if isinstance(raw.get("manifest"), Mapping) else {}
+    values = raw.get("values") if isinstance(raw.get("values"), Mapping) else {}
+    warnings = raw.get("warnings", ())
+    if isinstance(warnings, str):
+        warnings = (warnings,)
+    return {
+        "price": price,
+        "stderr": stderr,
+        "n_paths": int(config.get("n_paths", 0)),
+        "n_steps": int(config.get("n_steps", 1)),
+        "seed": int(config.get("seed", 0)),
+        "values": dict(values),
+        "manifest": dict(raw_manifest)
+        | {
+            "backend": "apple_metal",
+            "execution_mode": "native_extension_metal",
+            "native_module": native_module,
+        },
+        "warnings": [str(item) for item in warnings],
+        "explanation": (
+            "Executed through the strict native Apple Metal bridge; unsupported "
+            "Metal requests fail instead of falling back to CPU."
+        ),
+    }
+
+
 def _pricing_result_payload(result: PricingResult, backend_id: str) -> dict[str, Any]:
     return {
         "price": result.price,
@@ -708,6 +960,16 @@ def _benchmark_row_summary(row: Mapping[str, Any]) -> dict[str, Any]:
         "metric_name": row.get("metric_name"),
         "metric_value": row.get("metric_value"),
     }
+
+
+def _catalog_items(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    for key in ("workloads", "products", "capabilities", "items"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, Mapping)]
+    if isinstance(payload.get("catalog"), Mapping):
+        return _catalog_items(payload["catalog"])
+    return []
 
 
 def _repo_root() -> Path:

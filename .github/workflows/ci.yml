@@ -40,6 +40,9 @@ jobs:
       - name: Test mc-core with combined native-gpu features
         run: cargo test -q -p mc-core --features "cuda-native metal-native"
 
+      - name: Test Python extension with metal-native feature
+        run: cargo test -q -p montepath-python --features metal-native
+
       - name: Benchmark harness smoke test
         run: cargo run -p mc-bench -- --output benchmarks/latest-results.json
 

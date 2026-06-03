@@ -23,7 +23,12 @@ from .planner_intelligence import (
     mlmc_error_calibration,
     why_not_faster,
 )
-from .production import benchmark_report, production_status, validate_workload_request
+from .production import (
+    benchmark_report,
+    numerical_validation_report,
+    production_status,
+    validate_workload_request,
+)
 from .pricing import (
     ArithmeticAsianCallConfig,
     DownAndOutCallConfig,
@@ -66,6 +71,13 @@ def agent_tool_manifest() -> dict[str, Any]:
             "Validate a request against production backend policy and benchmark evidence.",
             "montepath.production_check.request",
             "montepath.production_check.response",
+            deterministic=True,
+        ),
+        _tool(
+            "montepath.validation_report",
+            "Report committed numerical reference fixtures, caveats, and tolerance policy.",
+            "montepath.validation_report.request",
+            "montepath.validation_report.response",
             deterministic=True,
         ),
         _tool(
@@ -231,6 +243,16 @@ def export_json_schemas() -> dict[str, dict[str, Any]]:
         "montepath.capabilities.response": response_schema,
         "montepath.production_check.request": production_check_request_schema,
         "montepath.production_check.response": response_schema,
+        "montepath.validation_report.request": {
+            "type": "object",
+            "properties": {
+                "repo_root": {"type": "string"},
+                "reference_artifact": {"type": "string"},
+                "capability_catalog": {"type": "string"},
+            },
+            "additionalProperties": False,
+        },
+        "montepath.validation_report.response": response_schema,
         "montepath.recommend.request": request_schema,
         "montepath.recommend.response": response_schema,
         "montepath.plan.request": request_schema,
@@ -337,7 +359,7 @@ def agent_production_check(request: Mapping[str, Any]) -> dict[str, Any]:
             "production_policy": {
                 "cpu_native": "preferred Python production fast path when installed",
                 "python_reference": "allowed for reproducibility demos and small agent-safe executions",
-                "apple_metal": "validated through Rust hardware workflow; not exposed through PyPI Python bridge yet",
+                "apple_metal": "available from Python when the installed native module exposes price_*_metal functions; otherwise explicit unavailable",
                 "nvidia_cuda": "deferred until native launch, reductions, and deterministic GPU RNG land",
             },
         },
@@ -348,6 +370,36 @@ def agent_production_check(request: Mapping[str, Any]) -> dict[str, Any]:
             config=config | {"backend": backend, "native_module": native_module},
             method="production_readiness_check",
             warnings=tuple(validation.get("warnings", ())) + tuple(report.get("notes", ())),
+        ),
+    }
+
+
+def agent_validation_report(request: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    payload = dict(request or {})
+    report = numerical_validation_report(
+        reference_artifact=str(
+            payload.get("reference_artifact", "benchmarks/reference-fixtures.json")
+        ),
+        capability_catalog=str(
+            payload.get(
+                "capability_catalog", "docs/product-model-capability-catalog.json"
+            )
+        ),
+        repo_root=payload.get("repo_root"),
+    )
+    return {
+        "ok": not report.get("diagnostics"),
+        "result": report,
+        "diagnostics": list(report.get("diagnostics", ())),
+        "manifest": _agent_manifest(
+            tool="montepath.validation_report",
+            workload="numerical_validation",
+            config={
+                "reference_artifact": report["reference_artifact"],
+                "capability_catalog": report["capability_catalog"],
+            },
+            method="validation_metadata_report",
+            warnings=tuple(report.get("notes", ())),
         ),
     }
 

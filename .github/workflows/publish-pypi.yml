@@ -41,14 +41,17 @@ jobs:
             os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             manylinux: "2014"
+            cargo-features: ""
           - name: macos-universal2
             os: macos-14
             target: universal2-apple-darwin
             manylinux: auto
+            cargo-features: "--features metal-native"
           - name: windows-x64
             os: windows-latest
             target: x86_64-pc-windows-msvc
             manylinux: auto
+            cargo-features: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -56,7 +59,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist --compatibility pypi
+          args: --release --out dist --compatibility pypi ${{ matrix.cargo-features }}
           manylinux: ${{ matrix.manylinux }}
           sccache: true
 

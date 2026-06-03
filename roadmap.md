@@ -212,14 +212,25 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
   Python reference, Apple Metal, and deferred CUDA states.
 - `done` Add explicit backend selection and workload validation surfaces that
   avoid silent fallback for unavailable Metal or deferred CUDA requests.
+- `done` Expose strict Apple Metal Python execution through feature-gated native
+  bridge functions for the current European-call, arithmetic-Asian-call, and
+  down-and-out-call GBM workload family.
+- `done` Add production API compatibility tests for public exports, agent tool
+  ids, schema versions, and native bridge function identifiers.
+- `done` Add agent-readable numerical validation reporting for committed
+  reference fixtures, tolerance policy, and explicit caveat workloads.
 - `done` Add benchmark artifact summary reporting so production checks can cite
   evidence without running benchmarks.
 - `done` Add agent and MCP tools for installed capability inspection and
-  production readiness checks.
+  production readiness checks, including validation metadata reporting.
 - `done` Expand installed-package smoke coverage to verify production status,
-  backend selection, benchmark summaries, and MCP production tools.
+  backend selection, benchmark summaries, validation summaries, and MCP
+  production tools.
+- `done` Expand Python package CI across Python versions and OSes, and configure
+  macOS trusted-publishing wheels to build the Metal-enabled native bridge.
 - `done` Update API, install, agent, and function-catalog docs for the
-  CPU-native production path and honest Metal/CUDA boundaries.
+  CPU-native and feature-gated Metal production paths plus honest CUDA
+  boundaries.
 
 ## Ongoing Engineering Quality Track
 

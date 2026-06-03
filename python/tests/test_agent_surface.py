@@ -15,6 +15,7 @@ from montepath import (
     agent_production_check,
     agent_tool_manifest,
     agent_validate,
+    agent_validation_report,
     agent_why_not_faster,
     export_json_schemas,
 )
@@ -40,6 +41,7 @@ class AgentSurfaceTests(unittest.TestCase):
         self.assertIn("montepath.mlmc_calibration", tool_names)
         self.assertIn("montepath.capabilities", tool_names)
         self.assertIn("montepath.production_check", tool_names)
+        self.assertIn("montepath.validation_report", tool_names)
 
     def test_json_schema_export_contains_execute_contract(self) -> None:
         schemas = export_json_schemas()
@@ -50,6 +52,7 @@ class AgentSurfaceTests(unittest.TestCase):
         self.assertIn("montepath.why_not_faster.request", schemas)
         self.assertIn("montepath.capabilities.response", schemas)
         self.assertIn("montepath.production_check.response", schemas)
+        self.assertIn("montepath.validation_report.response", schemas)
         self.assertEqual(schemas["montepath.execute.request"]["type"], "object")
         self.assertIn("workload", schemas["montepath.execute.request"]["required"])
 
@@ -143,6 +146,17 @@ class AgentSurfaceTests(unittest.TestCase):
         self.assertTrue(production["ok"])
         self.assertIn("benchmark_report", production["result"])
         self.assertEqual(production["manifest"]["tool"], "montepath.production_check")
+
+    def test_validation_report_is_agent_safe(self) -> None:
+        response = agent_validation_report({})
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["manifest"]["tool"], "montepath.validation_report")
+        self.assertEqual(
+            response["result"]["schema_version"],
+            "montepath-numerical-validation.v1",
+        )
+        self.assertGreater(response["result"]["fixture_count"], 0)
 
 
 if __name__ == "__main__":

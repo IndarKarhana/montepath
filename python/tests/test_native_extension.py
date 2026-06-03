@@ -35,23 +35,28 @@ class NativeExtensionTests(unittest.TestCase):
     def test_native_runtime_exposes_all_bridge_functions(self) -> None:
         supported = set(native_runtime_status().supported_functions)
 
-        self.assertEqual(
-            supported,
-            {
-                "price_european_call",
-                "price_arithmetic_asian_call",
-                "price_down_and_out_call",
-                "price_lookback_call",
-                "price_basket_call",
-                "price_american_put",
-                "price_bermudan_put",
-                "price_heston_european_call",
-                "price_merton_jump_diffusion_call",
-                "price_european_call_parameter_sweep",
-                "gaussian_uncertainty_moments",
-                "arithmetic_asian_mlmc",
-            },
-        )
+        required_cpu_bridge = {
+            "price_european_call",
+            "price_arithmetic_asian_call",
+            "price_down_and_out_call",
+            "price_lookback_call",
+            "price_basket_call",
+            "price_american_put",
+            "price_bermudan_put",
+            "price_heston_european_call",
+            "price_merton_jump_diffusion_call",
+            "price_european_call_parameter_sweep",
+            "gaussian_uncertainty_moments",
+            "arithmetic_asian_mlmc",
+        }
+        optional_metal_bridge = {
+            "price_european_call_metal",
+            "price_arithmetic_asian_call_metal",
+            "price_down_and_out_call_metal",
+        }
+
+        self.assertTrue(required_cpu_bridge.issubset(supported))
+        self.assertTrue(supported.issubset(required_cpu_bridge | optional_metal_bridge))
 
     def test_native_pricing_functions_return_structured_results(self) -> None:
         price_cases = (

@@ -77,6 +77,10 @@ print(greeks.greeks)
 The Python helpers are dependency-free reference UX helpers. Timing claims
 remain tied to Rust benchmark artifacts. Use `native_runtime_status()` to check
 whether compiled Rust execution is installed in the active Python environment.
+Metal-enabled macOS native builds also expose strict `price_*_metal` bridge
+functions for the current GBM option family; use `backend_capabilities()` or
+`select_backend(..., backend="apple_metal")` to inspect availability before
+running them.
 
 The Python package also exposes stable native-bridge configs and result
 surfaces for the Rust-only workload families: lookback, basket, American put,
@@ -114,10 +118,12 @@ from montepath import (
     agent_plan,
     agent_production_check,
     agent_tool_manifest,
+    agent_validation_report,
 )
 
 print(agent_tool_manifest()["schema_version"])
 print(agent_capabilities({})["result"]["native_runtime"])
+print(agent_validation_report({})["result"]["schema_version"])
 
 plan = agent_plan({
     "workload": "european_call",

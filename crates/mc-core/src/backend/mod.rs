@@ -15,7 +15,7 @@ mod cuda;
 mod metal;
 
 pub use cuda::{cuda_native_feature_enabled, NvidiaCudaBackend};
-pub use metal::{metal_native_feature_enabled, AppleMetalBackend};
+pub use metal::{execute_apple_metal_native, metal_native_feature_enabled, AppleMetalBackend};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BackendInfo {

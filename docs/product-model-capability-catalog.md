@@ -13,9 +13,9 @@ execution semantics are explicit and reproducible.
 
 | Workload | Model | CPU | Apple Metal | CUDA | Trusted Reference | QuantLib Lane |
 | --- | --- | --- | --- | --- | --- | --- |
-| European call | GBM / Black-Scholes | supported | supported for current GBM path family | staged, not native execution | Black-Scholes price and Greeks | `mc_cpu_european_call_quantlib` |
-| Arithmetic Asian call | GBM | supported | supported for current GBM path family | staged, not native execution | no trusted fixture yet | none |
-| Down-and-out call | GBM | supported | supported for current GBM path family | staged, not native execution | no trusted fixture yet | none |
+| European call | GBM / Black-Scholes | supported | supported for current GBM path family; Python bridge available in Metal-enabled macOS native builds | staged, not native execution | Black-Scholes price and Greeks | `mc_cpu_european_call_quantlib` |
+| Arithmetic Asian call | GBM | supported | supported for current GBM path family; Python bridge available in Metal-enabled macOS native builds | staged, not native execution | no trusted fixture yet | none |
+| Down-and-out call | GBM | supported | supported for current GBM path family; Python bridge available in Metal-enabled macOS native builds | staged, not native execution | no trusted fixture yet | none |
 | Fixed-strike lookback call | GBM | supported | not yet native | staged, not native execution | QuantLib competitor lane only | `mc_cpu_lookback_call_quantlib` |
 | American put | GBM / Black-Scholes | supported CPU reference: Longstaff-Schwartz | not yet native | staged, not native execution | CRR binomial tree plus European put lower bound; external LSM comparisons pending | none |
 | Bermudan put | GBM / Black-Scholes | supported CPU reference: Longstaff-Schwartz custom schedule | not yet native | staged, not native execution | CRR binomial tree plus European put lower bound; external LSM comparisons pending | none |
@@ -46,6 +46,9 @@ likelihood-ratio on unsupported workload families.
 ## Reference Fixture Policy
 
 Reference fixtures live in `benchmarks/reference-fixtures.json`.
+Agents can inspect the committed fixture and caveat metadata through
+`montepath.numerical_validation_report()` or the MCP tool
+`montepath.validation_report`.
 
 Current trusted references:
 

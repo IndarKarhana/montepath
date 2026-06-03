@@ -29,6 +29,7 @@ from .agent import (
     agent_reproduce,
     agent_tool_manifest,
     agent_validate,
+    agent_validation_report,
     agent_why_not_faster,
     export_json_schemas,
 )
@@ -63,6 +64,7 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "montepath.validate": agent_validate,
     "montepath.capabilities": agent_capabilities,
     "montepath.production_check": agent_production_check,
+    "montepath.validation_report": agent_validation_report,
     "montepath.recommend": agent_recommend,
     "montepath.plan": agent_plan,
     "montepath.execute": agent_execute,
@@ -286,7 +288,7 @@ def _package_version() -> str:
     try:
         return metadata.version("montepath")
     except metadata.PackageNotFoundError:
-        return "0.1.1"
+        return "0.1.2"
 
 
 if __name__ == "__main__":

@@ -139,6 +139,40 @@ impl AppleMetalBackend {
     }
 }
 
+pub fn execute_apple_metal_native(
+    input: &BackendExecutionInput,
+) -> Result<super::RunOutput, BackendError> {
+    let (n_paths, n_steps) = match input {
+        BackendExecutionInput::EuropeanCall(cfg) => (cfg.n_paths, cfg.n_steps),
+        BackendExecutionInput::ArithmeticAsianCall(cfg) => (cfg.n_paths, cfg.n_steps),
+        BackendExecutionInput::DownAndOutCall(cfg) => (cfg.n_paths, cfg.n_steps),
+    };
+    let plan = ExecutionPlan {
+        backend: BackendId::AppleMetal,
+        planner_mode: crate::PlannerMode::Balanced,
+        n_paths,
+        n_steps,
+        features: Default::default(),
+        decision_report: crate::BackendDecisionReport {
+            selected_backend: BackendId::AppleMetal,
+            reasons: vec!["strict native Metal execution requested".to_string()],
+            rejected_backends: Vec::new(),
+        },
+    };
+    let backend = AppleMetalBackend::new();
+    let device = backend
+        .discover_devices()
+        .into_iter()
+        .next()
+        .ok_or_else(|| {
+            BackendError::UnsupportedFeature(
+                "native Metal execution requires an Apple Metal device".to_string(),
+            )
+        })?;
+    let artifact = backend.compile(&plan, &device)?;
+    execute_native_metal_if_possible(&artifact, input)
+}
+
 impl RuntimeBackend for AppleMetalBackend {
     fn backend_id(&self) -> BackendId {
         BackendId::AppleMetal

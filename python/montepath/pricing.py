@@ -42,6 +42,9 @@ class EuropeanCallConfig:
     n_paths: int = 100_000
     n_steps: int = 64
     seed: int = 42
+    sampling: str = "pseudorandom"
+    technique: str = "standard"
+    n_threads: int = 0
 
 
 @dataclass(frozen=True)
@@ -56,9 +59,7 @@ class DownAndOutCallConfig(EuropeanCallConfig):
 
 @dataclass(frozen=True)
 class LookbackCallConfig(EuropeanCallConfig):
-    sampling: str = "pseudorandom"
-    technique: str = "standard"
-    n_threads: int = 0
+    pass
 
 
 @dataclass(frozen=True)
@@ -550,6 +551,8 @@ def _validate_gbm_config(cfg: EuropeanCallConfig) -> None:
             "volatility must be non-negative",
             "set volatility to zero or a positive decimal, for example 0.2",
         )
+    _validate_non_negative_int("n_threads", cfg.n_threads)
+    _validate_sampling_and_technique(cfg.sampling, cfg.technique)
 
 
 def _validate_positive_int(name: str, value: int) -> None:
@@ -827,6 +830,7 @@ def _simulate_gbm_payoff(
     cfg: EuropeanCallConfig,
     payoff_fn: Any,
 ) -> PricingResult:
+    _validate_python_reference_policy(cfg)
     rng = random.Random(cfg.seed)
     dt = cfg.maturity / cfg.n_steps
     drift = (cfg.rate - 0.5 * cfg.volatility * cfg.volatility) * dt
@@ -853,6 +857,21 @@ def _simulate_gbm_payoff(
             "Python helper is for ergonomics and reproducibility demos; use Rust artifacts for performance claims.",
         ),
     )
+
+
+def _validate_python_reference_policy(cfg: EuropeanCallConfig) -> None:
+    if cfg.sampling != "pseudorandom":
+        raise McConfigurationError(
+            "MC_PYTHON_REFERENCE_SAMPLING",
+            f"Python reference helper does not implement sampling '{cfg.sampling}'",
+            "Use sampling='pseudorandom' or pass native_module='montepath._native'.",
+        )
+    if cfg.technique != "standard":
+        raise McConfigurationError(
+            "MC_PYTHON_REFERENCE_TECHNIQUE",
+            f"Python reference helper does not implement technique '{cfg.technique}'",
+            "Use technique='standard' or pass native_module='montepath._native'.",
+        )
 
 
 def _simulate_gbm_path(

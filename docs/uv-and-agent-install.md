@@ -36,6 +36,10 @@ The installed package includes:
 - `montepath._native`: Rust-backed CPU extension
 - `montepath-mcp`: MCP-compatible stdio server for agents
 
+macOS wheels built with the `metal-native` feature also expose strict Apple
+Metal bridge functions for the current GBM option family. Linux and Windows
+wheels remain CPU-native.
+
 ## Native Runtime Check
 
 ```bash
@@ -52,11 +56,14 @@ Expected installed-wheel shape:
 {
   "available": true,
   "module_name": "montepath._native",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "supported_functions": [
     "price_european_call",
     "price_arithmetic_asian_call",
     "price_down_and_out_call",
+    "price_european_call_metal",
+    "price_arithmetic_asian_call_metal",
+    "price_down_and_out_call_metal",
     "price_lookback_call",
     "price_basket_call",
     "price_american_put",
@@ -70,6 +77,10 @@ Expected installed-wheel shape:
   "reason": null
 }
 ```
+
+The `price_*_metal` functions appear only in Metal-enabled macOS native builds.
+Code and agents should inspect `native_runtime_status()` or
+`backend_capabilities()` instead of assuming they exist on every wheel.
 
 ## Use The MCP Server With uvx
 
@@ -141,6 +152,8 @@ Production-oriented agent tools include:
   Apple Metal, CUDA, MCP, and agent readiness
 - `montepath.production_check`: validate a workload/config/backend request
   against production policy and benchmark evidence without executing it
+- `montepath.validation_report`: inspect committed reference fixtures, caveats,
+  and tolerance policy without running simulations
 
 Built-in limits:
 

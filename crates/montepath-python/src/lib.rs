@@ -11,6 +11,8 @@ use mc_core::{
     EuropeanCallSweepScenario, GaussianUncertaintyConfig, HestonEuropeanCallConfig,
     LookbackCallConfig, MertonJumpDiffusionCallConfig, MonteCarloTechnique, SamplingMethod,
 };
+#[cfg(feature = "metal-native")]
+use mc_core::{execute_apple_metal_native, BackendExecutionInput};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde::Serialize;
@@ -55,6 +57,57 @@ fn price_down_and_out_call(py: Python<'_>, config: &Bound<'_, PyAny>) -> PyResul
         &cfg,
         result,
         Vec::new(),
+    )
+}
+
+#[cfg(feature = "metal-native")]
+#[pyfunction]
+fn price_european_call_metal(py: Python<'_>, config: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+    let cfg = european_config(config)?;
+    let output = execute_apple_metal_native(&BackendExecutionInput::EuropeanCall(cfg.clone()))
+        .map_err(|err| PyValueError::new_err(format!("native Metal execution failed: {err}")))?;
+    metal_pricing_response(
+        py,
+        "european_call",
+        "price_european_call_metal",
+        &cfg,
+        output,
+    )
+}
+
+#[cfg(feature = "metal-native")]
+#[pyfunction]
+fn price_arithmetic_asian_call_metal(
+    py: Python<'_>,
+    config: &Bound<'_, PyAny>,
+) -> PyResult<PyObject> {
+    let cfg = asian_config(config)?;
+    let output =
+        execute_apple_metal_native(&BackendExecutionInput::ArithmeticAsianCall(cfg.clone()))
+            .map_err(|err| {
+                PyValueError::new_err(format!("native Metal execution failed: {err}"))
+            })?;
+    metal_pricing_response(
+        py,
+        "arithmetic_asian_call",
+        "price_arithmetic_asian_call_metal",
+        &cfg,
+        output,
+    )
+}
+
+#[cfg(feature = "metal-native")]
+#[pyfunction]
+fn price_down_and_out_call_metal(py: Python<'_>, config: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+    let cfg = down_and_out_config(config)?;
+    let output = execute_apple_metal_native(&BackendExecutionInput::DownAndOutCall(cfg.clone()))
+        .map_err(|err| PyValueError::new_err(format!("native Metal execution failed: {err}")))?;
+    metal_pricing_response(
+        py,
+        "down_and_out_call",
+        "price_down_and_out_call_metal",
+        &cfg,
+        output,
     )
 }
 
@@ -197,6 +250,12 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(price_european_call, m)?)?;
     m.add_function(wrap_pyfunction!(price_arithmetic_asian_call, m)?)?;
     m.add_function(wrap_pyfunction!(price_down_and_out_call, m)?)?;
+    #[cfg(feature = "metal-native")]
+    {
+        m.add_function(wrap_pyfunction!(price_european_call_metal, m)?)?;
+        m.add_function(wrap_pyfunction!(price_arithmetic_asian_call_metal, m)?)?;
+        m.add_function(wrap_pyfunction!(price_down_and_out_call_metal, m)?)?;
+    }
     m.add_function(wrap_pyfunction!(price_lookback_call, m)?)?;
     m.add_function(wrap_pyfunction!(price_basket_call, m)?)?;
     m.add_function(wrap_pyfunction!(price_american_put, m)?)?;
@@ -538,15 +597,74 @@ fn workload_response<T: Serialize>(
     json_to_py(py, Value::Object(root))
 }
 
+#[cfg(feature = "metal-native")]
+fn metal_pricing_response(
+    py: Python<'_>,
+    workload: &str,
+    function_name: &str,
+    config: &impl Serialize,
+    output: mc_core::RunOutput,
+) -> PyResult<PyObject> {
+    let mut root = Map::new();
+    root.insert("price".to_string(), json!(output.price));
+    root.insert("stderr".to_string(), json!(output.stderr));
+    root.insert(
+        "values".to_string(),
+        json!({
+            "price": output.price,
+            "stderr": output.stderr,
+            "runtime_ms": output.runtime_ms,
+        }),
+    );
+    root.insert(
+        "manifest".to_string(),
+        manifest_for_backend(
+            workload,
+            function_name,
+            config,
+            "apple_metal",
+            "native_extension_metal",
+            "statistically reproducible for identical config, seed, native module version, Metal runtime, and Apple device class",
+        )?,
+    );
+    root.insert(
+        "warnings".to_string(),
+        json!([
+            "native Metal bridge supports pseudorandom sampling for the current GBM option family; unsupported requests fail explicitly",
+            "Metal execution uses float32 kernels and should be compared against CPU/reference tolerances before production claims"
+        ]),
+    );
+    json_to_py(py, Value::Object(root))
+}
+
 fn manifest(workload: &str, function_name: &str, config: &impl Serialize) -> PyResult<Value> {
+    manifest_for_backend(
+        workload,
+        function_name,
+        config,
+        "cpu_native",
+        "native_extension",
+        "deterministic for identical config, seed, native module version, and CPU runtime semantics",
+    )
+}
+
+fn manifest_for_backend(
+    workload: &str,
+    function_name: &str,
+    config: &impl Serialize,
+    backend: &str,
+    execution_mode: &str,
+    reproducibility: &str,
+) -> PyResult<Value> {
     Ok(json!({
         "schema_version": "python-native-runtime.v1",
         "workload": workload,
-        "backend": "cpu_native",
+        "backend": backend,
+        "execution_mode": execution_mode,
         "function": function_name,
         "native_module": "montepath._native",
         "config": to_value(config)?,
-        "reproducibility": "deterministic for identical config, seed, native module version, and CPU runtime semantics",
+        "reproducibility": reproducibility,
         "performance_claim": "use benchmark artifacts for timing claims"
     }))
 }

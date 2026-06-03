@@ -13,6 +13,10 @@ documentation.workspace = true
 name = "_native"
 crate-type = ["cdylib"]
 
+[features]
+default = []
+metal-native = ["mc-core/metal-native"]
+
 [dependencies]
 mc-core = { path = "../mc-core" }
 pyo3 = { version = "0.22", features = ["extension-module", "abi3-py310"] }

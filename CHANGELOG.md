@@ -2,14 +2,22 @@
 
 ## Unreleased
 
+## 0.1.2
+
+- Added strict Apple Metal Python bridge functions for European-call,
+  arithmetic-Asian-call, and down-and-out-call workloads in Metal-enabled
+  macOS native builds.
 - Added production preflight helpers for installed CPU-native, Python
   reference, Apple Metal, and CUDA capability reporting.
 - Added explicit backend selection and workload validation surfaces that avoid
   silent fallback for unavailable Metal or deferred CUDA execution.
-- Added agent and MCP tools for installed capability inspection and production
-  readiness checks.
-- Expanded installed-package smoke coverage to verify production status,
-  backend selection, benchmark summaries, and MCP production tools.
+- Added numerical validation reporting for committed reference fixtures,
+  tolerance policy, and caveat workloads.
+- Added agent and MCP tools for installed capability inspection, validation
+  metadata, and production readiness checks.
+- Expanded compatibility, installed-package, and OS/Python CI coverage for
+  production status, backend selection, benchmark summaries, validation
+  summaries, and MCP production tools.
 
 ## 0.1.1
 

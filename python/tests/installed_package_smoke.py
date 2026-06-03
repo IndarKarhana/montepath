@@ -14,6 +14,7 @@ from montepath import (
     backend_capabilities,
     benchmark_report,
     native_runtime_status,
+    numerical_validation_report,
     price_arithmetic_asian_mlmc,
     price_basket_call,
     price_european_call,
@@ -75,6 +76,9 @@ def main() -> int:
     report = benchmark_report()
     if report["schema_version"] != "montepath-benchmark-report.v1":
         raise SystemExit("benchmark report schema missing")
+    validation_report = numerical_validation_report()
+    if validation_report["schema_version"] != "montepath-numerical-validation.v1":
+        raise SystemExit("numerical validation report schema missing")
 
     metadata = server_metadata()
     if metadata["schema_version"] != "mcp-server.v1":
@@ -83,7 +87,12 @@ def main() -> int:
     if tools is None or "result" not in tools:
         raise SystemExit("MCP tools/list smoke failed")
     tool_names = {tool["name"] for tool in tools["result"]["tools"]}
-    if "montepath.capabilities" not in tool_names or "montepath.production_check" not in tool_names:
+    required_tools = {
+        "montepath.capabilities",
+        "montepath.production_check",
+        "montepath.validation_report",
+    }
+    if not required_tools.issubset(tool_names):
         raise SystemExit("MCP production tools missing")
 
     print("installed package smoke passed")

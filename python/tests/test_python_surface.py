@@ -24,6 +24,7 @@ from montepath import (
     backend_capabilities,
     benchmark_report,
     execute_workload,
+    numerical_validation_report,
     has_native_runtime,
     gaussian_uncertainty_moments,
     native_runtime_status,
@@ -229,7 +230,73 @@ class PythonSurfaceTests(unittest.TestCase):
 
         self.assertFalse(selected.ok)
         self.assertEqual(selected.backend_id, "apple_metal")
-        self.assertIn("not exposed", selected.diagnostics[0]["message"])
+        self.assertIn("native runtime", selected.diagnostics[0]["message"])
+
+    def test_select_backend_and_execute_workload_support_metal_bridge_when_available(self) -> None:
+        module_name = "_montepath_native_metal_backend_selection"
+        module = ModuleType(module_name)
+        module.__version__ = "0.2-test"
+
+        def price_european_call_metal(payload):
+            return {
+                "price": 3.0,
+                "stderr": 0.2,
+                "values": {"runtime_ms": 1.25},
+                "manifest": {
+                    "backend": "apple_metal",
+                    "execution_mode": "native_extension_metal",
+                    "seed": payload["seed"],
+                },
+                "warnings": ["test Metal bridge"],
+            }
+
+        module.price_european_call_metal = price_european_call_metal
+        sys.modules[module_name] = module
+
+        try:
+            selected = select_backend(
+                "european_call", backend="apple_metal", native_module=module_name
+            )
+            result = execute_workload(
+                "european_call",
+                {"n_paths": 128, "n_steps": 8, "seed": 43},
+                backend="apple_metal",
+                native_module=module_name,
+            )
+            capabilities = {item.backend_id: item for item in backend_capabilities(module_name)}
+
+            self.assertTrue(selected.ok)
+            self.assertEqual(selected.execution_mode, "native_extension_metal")
+            self.assertEqual(capabilities["apple_metal"].status, "available")
+            self.assertTrue(capabilities["apple_metal"].agent_tool_ready)
+            self.assertEqual(result["selection"]["backend_id"], "apple_metal")
+            self.assertEqual(result["result"]["price"], 3.0)
+            self.assertEqual(result["manifest"]["backend"], "apple_metal")
+        finally:
+            sys.modules.pop(module_name, None)
+
+    def test_validate_workload_rejects_unsupported_metal_sampling(self) -> None:
+        module_name = "_montepath_native_metal_sampling_policy"
+        module = ModuleType(module_name)
+        module.__version__ = "0.2-test"
+        module.price_european_call_metal = lambda payload: {}
+        sys.modules[module_name] = module
+
+        try:
+            validation = validate_workload_request(
+                "european_call",
+                {"n_paths": 128, "n_steps": 8, "seed": 43, "sampling": "scrambled_sobol"},
+                backend="apple_metal",
+                native_module=module_name,
+            )
+
+            self.assertFalse(validation["ok"])
+            self.assertEqual(
+                validation["diagnostics"][0]["code"],
+                "MC_BACKEND_METAL_SAMPLING_UNSUPPORTED",
+            )
+        finally:
+            sys.modules.pop(module_name, None)
 
     def test_validate_and_execute_workload_use_production_selection(self) -> None:
         validation = validate_workload_request(
@@ -283,6 +350,17 @@ class PythonSurfaceTests(unittest.TestCase):
         self.assertEqual(report["schema_version"], "montepath-benchmark-report.v1")
         self.assertGreater(report["row_count"], 0)
         self.assertIn("competitor_unavailable", report)
+
+    def test_numerical_validation_report_is_agent_readable(self) -> None:
+        report = numerical_validation_report()
+
+        self.assertEqual(
+            report["schema_version"], "montepath-numerical-validation.v1"
+        )
+        self.assertGreater(report["fixture_count"], 0)
+        self.assertIn("trusted_fixture_ids", report)
+        self.assertIn("caveat_workloads", report)
+        self.assertIn("tolerance_policy", report)
 
     def test_rust_backed_workload_configs_are_public_and_typed(self) -> None:
         basket = BasketCallConfig(correlation=0.35, n_paths=4096)
