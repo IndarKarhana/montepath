@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Updated hosted-runner GitHub Actions to Node 24 releases after the `0.2.0`
+  trusted-publishing run surfaced Node 20 deprecation warnings.
+
 ## 0.2.0
 
 - Added a Rust-first periodic-review inventory and supply-chain simulation

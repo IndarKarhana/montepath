@@ -204,6 +204,9 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
 - `done` Publish `montepath` `0.1.2` with strict Python-facing Apple Metal
   execution in the macOS universal2 wheel, production compatibility tests,
   numerical validation reporting, and expanded agent/MCP production tools.
+- `done` Publish `montepath` `0.2.0` with the Rust-backed periodic-review
+  inventory runtime, bounded traces, dedicated agent/MCP tools, release
+  benchmark evidence, and exact-artifact installation smokes.
 - `done` Add macOS universal2 publishing through cross-build support so macOS
   Intel coverage does not depend on scarce hosted Intel runners.
 - `done` Verify post-publication installation through `uv pip install
@@ -258,6 +261,8 @@ correctness, performance, API, agent, and Metal execution plan.
   hardware-local interpretation and populated NumPy/Numba comparison lanes.
 - `done` Smoke the exact source distribution, platform wheels, and strict
   macOS Metal bridge before trusted PyPI publication.
+- `done` Update hosted-runner CI and publishing actions to Node 24 releases
+  before GitHub's Node 20 removal.
 - `todo` Add common-random-number policy comparison, policy sweeps, and
   efficient-frontier reporting.
 - `todo` Add Markov regime-switching demand and random lead times.
