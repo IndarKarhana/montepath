@@ -201,6 +201,9 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
   release checks.
 - `done` Publish `montepath` `0.1.1` with stable-ABI manylinux x86_64,
   macOS arm64, macOS universal2, and Windows x64 wheels.
+- `done` Publish `montepath` `0.1.2` with strict Python-facing Apple Metal
+  execution in the macOS universal2 wheel, production compatibility tests,
+  numerical validation reporting, and expanded agent/MCP production tools.
 - `done` Add macOS universal2 publishing through cross-build support so macOS
   Intel coverage does not depend on scarce hosted Intel runners.
 - `done` Verify post-publication installation through `uv pip install
