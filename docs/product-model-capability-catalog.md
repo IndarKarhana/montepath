@@ -23,6 +23,7 @@ execution semantics are explicit and reproducible.
 | Heston European call | full-truncation Euler Heston | supported | not yet native | staged, not native execution | Black-Scholes limit fixture | `mc_cpu_heston_european_call_quantlib` |
 | Merton jump-diffusion call | Poisson lognormal jumps | supported | not yet native | staged, not native execution | Merton analytic series | none |
 | Gaussian UQ moments | independent standard normals | supported | not yet native | staged, not native execution | analytic mean and variance | none |
+| Periodic-review inventory policy | deterministic or clipped Normal demand | supported; Rust production and scalar Python reference | unsupported | unsupported | deterministic state-transition and bounded-trace fixture | NumPy and Numba identical-semantics lanes |
 
 ## Greek Estimator Matrix
 
@@ -62,6 +63,8 @@ Current trusted references:
 - Heston Black-Scholes limit when vol-of-vol is zero and variance is constant.
 - Merton jump-diffusion analytic series reference for the terminal European-call workload.
 - Gaussian UQ analytic mean and variance for `z_0^2 + 0.5 z_1 + exp(0.1 z_2)`.
+- Deterministic periodic-review inventory path metrics, constraint events, and
+  selected-path trace semantics.
 
 Explicit caveats:
 
@@ -76,6 +79,9 @@ Explicit caveats:
 - General Heston analytic comparison is delegated to the QuantLib lane when
   QuantLib-Python is installed; the trusted built-in fixture is the
   Black-Scholes limit.
+- Inventory currently supports one policy per execution with fixed lead time;
+  policy comparison, random lead times, regime switching, and native Metal are
+  explicitly deferred.
 
 ## QuantLib Position
 

@@ -21,6 +21,8 @@ from .agent import (
     agent_compare_methods,
     agent_cost_frontier,
     agent_execute,
+    agent_inventory_simulate,
+    agent_inventory_validate,
     agent_mlmc_calibration,
     agent_plan,
     agent_production_check,
@@ -32,6 +34,10 @@ from .agent import (
     agent_validation_report,
     agent_why_not_faster,
     export_json_schemas,
+    MAX_AGENT_INVENTORY_PATH_PERIOD_OPERATIONS,
+    MAX_AGENT_INVENTORY_PATHS,
+    MAX_AGENT_INVENTORY_PERIODS,
+    MAX_AGENT_INVENTORY_RETURNED_PATHS,
 )
 
 JSONRPC_VERSION = "2.0"
@@ -50,6 +56,10 @@ class McpServerLimits:
     max_config_paths: int = MAX_CONFIG_PATHS
     max_benchmark_profile: str = MAX_BENCHMARK_PROFILE
     benchmark_execution_requires_opt_in: bool = True
+    max_inventory_paths: int = MAX_AGENT_INVENTORY_PATHS
+    max_inventory_periods: int = MAX_AGENT_INVENTORY_PERIODS
+    max_inventory_path_period_operations: int = MAX_AGENT_INVENTORY_PATH_PERIOD_OPERATIONS
+    max_inventory_returned_paths: int = MAX_AGENT_INVENTORY_RETURNED_PATHS
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -57,6 +67,10 @@ class McpServerLimits:
             "max_config_paths": self.max_config_paths,
             "max_benchmark_profile": self.max_benchmark_profile,
             "benchmark_execution_requires_opt_in": self.benchmark_execution_requires_opt_in,
+            "max_inventory_paths": self.max_inventory_paths,
+            "max_inventory_periods": self.max_inventory_periods,
+            "max_inventory_path_period_operations": self.max_inventory_path_period_operations,
+            "max_inventory_returned_paths": self.max_inventory_returned_paths,
         }
 
 
@@ -76,6 +90,8 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "montepath.compare_methods": agent_compare_methods,
     "montepath.why_not_faster": agent_why_not_faster,
     "montepath.mlmc_calibration": agent_mlmc_calibration,
+    "montepath.inventory.validate": agent_inventory_validate,
+    "montepath.inventory.simulate": agent_inventory_simulate,
 }
 
 
@@ -240,7 +256,56 @@ def _enforce_limits(name: str, arguments: Mapping[str, Any]) -> list[dict[str, s
                 "suggestion": "Use dry-run benchmark metadata or run the benchmark harness directly.",
             }
         )
+    if name.startswith("montepath.inventory."):
+        n_paths = (
+            _integer_value(config.get("n_paths"), 10_000)
+            if isinstance(config, Mapping)
+            else 10_000
+        )
+        n_periods = (
+            _integer_value(config.get("n_periods"), 52)
+            if isinstance(config, Mapping)
+            else 52
+        )
+        max_returned_paths = _integer_value(
+            arguments.get("max_returned_paths"), MAX_AGENT_INVENTORY_RETURNED_PATHS
+        )
+        for exceeds, code, message, suggestion in (
+            (
+                n_paths > MAX_AGENT_INVENTORY_PATHS,
+                "MC_MCP_LIMIT_INVENTORY_PATHS",
+                f"n_paths={n_paths} exceeds MCP inventory limit {MAX_AGENT_INVENTORY_PATHS}",
+                "Reduce n_paths or run the native API outside MCP.",
+            ),
+            (
+                n_periods > MAX_AGENT_INVENTORY_PERIODS,
+                "MC_MCP_LIMIT_INVENTORY_PERIODS",
+                f"n_periods={n_periods} exceeds MCP inventory limit {MAX_AGENT_INVENTORY_PERIODS}",
+                "Reduce n_periods or run the native API outside MCP.",
+            ),
+            (
+                n_paths * n_periods > MAX_AGENT_INVENTORY_PATH_PERIOD_OPERATIONS,
+                "MC_MCP_LIMIT_INVENTORY_OPERATIONS",
+                "inventory request exceeds the MCP path-period operation limit",
+                "Reduce n_paths or n_periods.",
+            ),
+            (
+                max_returned_paths < 0
+                or max_returned_paths > MAX_AGENT_INVENTORY_RETURNED_PATHS,
+                "MC_MCP_LIMIT_INVENTORY_RETURNED_PATHS",
+                f"max_returned_paths must be between 0 and {MAX_AGENT_INVENTORY_RETURNED_PATHS}",
+                "Request a bounded path sample and use summary metrics for the full run.",
+            ),
+        ):
+            if exceeds:
+                diagnostics.append(
+                    {"code": code, "message": message, "suggestion": suggestion}
+                )
     return diagnostics
+
+
+def _integer_value(value: Any, default: int) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else default
 
 
 def _tool_failure(code: str, message: str) -> dict[str, Any]:
@@ -288,7 +353,7 @@ def _package_version() -> str:
     try:
         return metadata.version("montepath")
     except metadata.PackageNotFoundError:
-        return "0.1.2"
+        return "0.2.0"
 
 
 if __name__ == "__main__":

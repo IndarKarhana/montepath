@@ -17,12 +17,13 @@ use mc_core::{
     heston_european_call_greeks_cpu, heston_european_call_price_mc_cpu, lookback_call_price_mc_cpu,
     merton_jump_diffusion_call_price_mc_cpu, merton_jump_diffusion_call_reference_price,
     plan_execution, price_all_current_greeks_bump_and_revalue_cpu,
-    price_european_call_parameter_sweep_cpu, solve_arithmetic_asian_mlmc_tolerance_cpu,
-    AmericanPutConfig, ArithmeticAsianCallConfig, ArithmeticAsianMlmcConfig,
-    ArithmeticAsianMlmcToleranceConfig, BackendId, BackendPreference, BackendSupportReport,
-    BasketCallConfig, BermudanPutConfig, DownAndOutCallConfig, EuropeanCallConfig,
-    EuropeanCallMethod, EuropeanCallParameterSweepConfig, EuropeanCallSweepScenario,
-    GaussianUncertaintyConfig, Greek, GreekEstimator, HestonEuropeanCallConfig, LookbackCallConfig,
+    price_european_call_parameter_sweep_cpu, simulate_inventory_policy_cpu,
+    solve_arithmetic_asian_mlmc_tolerance_cpu, AmericanPutConfig, ArithmeticAsianCallConfig,
+    ArithmeticAsianMlmcConfig, ArithmeticAsianMlmcToleranceConfig, BackendId, BackendPreference,
+    BackendSupportReport, BasketCallConfig, BermudanPutConfig, DownAndOutCallConfig,
+    EuropeanCallConfig, EuropeanCallMethod, EuropeanCallParameterSweepConfig,
+    EuropeanCallSweepScenario, GaussianUncertaintyConfig, Greek, GreekEstimator,
+    HestonEuropeanCallConfig, InventoryCostConfig, InventorySimulationConfig, LookbackCallConfig,
     MertonJumpDiffusionCallConfig, MonteCarloTechnique, PlannerMode, RunConfig, SamplingMethod,
 };
 #[cfg(feature = "metal-native")]
@@ -50,6 +51,8 @@ const ASIAN_MLMC_MAX_STEP_UPDATES: usize = 2_000_000;
 const ASIAN_MLMC_PILOT_PATHS: usize = 2_048;
 const ASIAN_MLMC_TARGET_STDERR: f64 = 0.05;
 const ASIAN_MLQMC_REPLICATES: usize = 4;
+const INVENTORY_PATHS: usize = 10_000;
+const INVENTORY_PERIODS: usize = 104;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BenchmarkSuite {
@@ -81,6 +84,7 @@ fn run_full_benchmarks() -> BenchmarkReport {
         benchmark_planner_choice_accuracy(),
         benchmark_planner_choice_accuracy_measured(),
         benchmark_mc_rust_cpu_stepwise(MC_REPEATS),
+        benchmark_inventory_cpu_periodic_review(MC_REPEATS),
         benchmark_mc_rust_cpu_stepwise_antithetic(MC_REPEATS),
         benchmark_mc_rust_cpu_stepwise_antithetic_quality(),
         benchmark_mc_rust_cpu_stepwise_control_variate(MC_REPEATS),
@@ -438,6 +442,7 @@ fn run_compact_benchmarks_inner() -> BenchmarkReport {
         benchmark_planner_choice_accuracy(),
         benchmark_planner_choice_accuracy_measured(),
         benchmark_mc_rust_cpu_stepwise(1),
+        benchmark_inventory_cpu_periodic_review(1),
         benchmark_mc_rust_cpu_stepwise_antithetic_quality(),
         benchmark_mc_rust_cpu_terminal(1),
         benchmark_mc_rust_cpu_european_parameter_sweep(1),
@@ -716,6 +721,21 @@ pub fn build_competitiveness_plan(report: &BenchmarkReport) -> String {
             || r.benchmark_name == "mc_cpu_lookback_call_quantlib_unavailable"
             || r.benchmark_name == "mc_cpu_heston_european_call_quantlib_unavailable"
     });
+    let inventory_rust = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "inventory_cpu_periodic_review_rust")
+        .and_then(|r| r.runtime_ms());
+    let inventory_numpy = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "inventory_cpu_periodic_review_numpy")
+        .and_then(|r| r.runtime_ms());
+    let inventory_numba = report
+        .results
+        .iter()
+        .find(|r| r.benchmark_name == "inventory_cpu_periodic_review_numba")
+        .and_then(|r| r.runtime_ms());
 
     let mut competitor_rows = report
         .results
@@ -816,6 +836,23 @@ pub fn build_competitiveness_plan(report: &BenchmarkReport) -> String {
             "- Measured planner choice accuracy: `{:.1}%`\n",
             accuracy
         ));
+    }
+    if let Some(runtime) = inventory_rust {
+        out.push_str(&format!(
+            "- Inventory periodic-review Rust CPU runtime is live (`{runtime:.3} ms`) for `10,000 paths x 104 periods`.\n"
+        ));
+        if let Some(numpy) = inventory_numpy {
+            out.push_str(&format!(
+                "- Inventory NumPy comparison: `{numpy:.3} ms` (`{:.2}x` Rust/NumPy speedup; values above `1.0x` favor Rust).\n",
+                numpy / runtime
+            ));
+        }
+        if let Some(numba) = inventory_numba {
+            out.push_str(&format!(
+                "- Inventory Numba comparison: `{numba:.3} ms` (`{:.2}x` Rust/Numba speedup; values above `1.0x` favor Rust).\n",
+                numba / runtime
+            ));
+        }
     }
     out.push('\n');
 
@@ -1730,6 +1767,57 @@ fn benchmark_mc_rust_cpu_stepwise(repeats: usize) -> BenchmarkResult {
         },
         metric_name: Some("price_estimate".to_string()),
         metric_value: Some(avg_price),
+    }
+}
+
+fn benchmark_inventory_cpu_periodic_review(repeats: usize) -> BenchmarkResult {
+    let cfg = InventorySimulationConfig {
+        n_paths: INVENTORY_PATHS,
+        n_periods: INVENTORY_PERIODS,
+        warmup_periods: 4,
+        costs: InventoryCostConfig {
+            holding_cost_per_unit_period: 0.1,
+            backorder_cost_per_unit_period: 1.0,
+            lost_sale_cost_per_unit: 2.0,
+            fixed_order_cost: 5.0,
+            variable_order_cost_per_unit: 0.01,
+        },
+        ..InventorySimulationConfig::default()
+    };
+
+    let mut runtimes = Vec::with_capacity(repeats);
+    let mut mean_total_costs = Vec::with_capacity(repeats);
+    for repeat in 0..repeats {
+        let mut cfg_i = cfg.clone();
+        cfg_i.seed = cfg.seed + repeat as u64;
+        let started = Instant::now();
+        let result =
+            simulate_inventory_policy_cpu(&cfg_i).expect("inventory benchmark config is valid");
+        runtimes.push(started.elapsed().as_secs_f64() * 1_000.0);
+        mean_total_costs.push(result.summary.total_cost.mean);
+    }
+
+    let avg_runtime_ms = runtimes.iter().sum::<f64>() / runtimes.len() as f64;
+    let mean_total_cost = mean_total_costs.iter().sum::<f64>() / mean_total_costs.len() as f64;
+    let path_period_updates = (cfg.n_paths * cfg.n_periods) as f64;
+
+    BenchmarkResult {
+        benchmark_name: "inventory_cpu_periodic_review_rust".to_string(),
+        benchmark_version: "0.1".to_string(),
+        implementation: "mc-core::runtime::inventory::simulate_inventory_policy_cpu".to_string(),
+        backend: "cpu_native".to_string(),
+        methodology: Some("single_sku_periodic_review_fixed_lead_time".to_string()),
+        planner_mode: "n/a".to_string(),
+        iterations: repeats,
+        total_runtime_ms: avg_runtime_ms * repeats as f64,
+        per_iteration_us: avg_runtime_ms * 1_000.0,
+        throughput_per_sec: if avg_runtime_ms == 0.0 {
+            path_period_updates
+        } else {
+            path_period_updates / (avg_runtime_ms / 1_000.0)
+        },
+        metric_name: Some("mean_total_cost".to_string()),
+        metric_value: Some(mean_total_cost),
     }
 }
 
@@ -4647,6 +4735,10 @@ fn benchmark_python_competitors(
         .arg(repeats.to_string())
         .arg("--seed")
         .arg(seed.to_string())
+        .arg("--inventory-paths")
+        .arg(INVENTORY_PATHS.to_string())
+        .arg("--inventory-periods")
+        .arg(INVENTORY_PERIODS.to_string())
         .output();
 
     let Ok(output) = output else {
@@ -4712,6 +4804,8 @@ fn benchmark_python_competitors(
                     .unwrap_or_else(|| "stepwise_paths".to_string());
                 let benchmark_name = if methodology.starts_with("standard_normal_generation") {
                     format!("mc_cpu_qmc_{}_generation", entry.library)
+                } else if methodology.starts_with("inventory_periodic_review") {
+                    format!("inventory_cpu_periodic_review_{}", entry.library)
                 } else if methodology.starts_with("terminal_distribution_gpu") {
                     format!("mc_gpu_european_call_{}", entry.library)
                 } else if methodology.starts_with("lookback_fixed_strike") {
@@ -4732,6 +4826,8 @@ fn benchmark_python_competitors(
                 };
                 let work_units = if methodology.starts_with("standard_normal_generation") {
                     n_paths.saturating_mul(n_steps) as f64
+                } else if methodology.starts_with("inventory_periodic_review") {
+                    INVENTORY_PATHS.saturating_mul(INVENTORY_PERIODS) as f64
                 } else {
                     n_paths as f64
                 };
@@ -4767,6 +4863,11 @@ fn benchmark_python_competitors(
                     benchmark_name: if let Some(ref methodology) = methodology {
                         if methodology.starts_with("standard_normal_generation") {
                             format!("mc_cpu_qmc_{}_generation_unavailable", entry.library)
+                        } else if methodology.starts_with("inventory_periodic_review") {
+                            format!(
+                                "inventory_cpu_periodic_review_{}_unavailable",
+                                entry.library
+                            )
                         } else if methodology.starts_with("terminal_distribution_gpu") {
                             format!("mc_gpu_european_call_{}_unavailable", entry.library)
                         } else if methodology.starts_with("lookback_fixed_strike") {

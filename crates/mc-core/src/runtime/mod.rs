@@ -1,4 +1,5 @@
 pub mod cpu;
+pub mod inventory;
 
 pub use cpu::{
     american_put_binomial_reference_price, american_put_price_lsm_cpu,
@@ -40,4 +41,12 @@ pub use cpu::{
     MonteCarloMethodCapability, MonteCarloMethodCategory, MonteCarloRng, MonteCarloTechnique,
     PricingQualityComparison, PricingWorkloadFamily, SamplingMethod, StandardNormalDiagnostics,
     StructuredSamplingGuidance,
+};
+pub use inventory::{
+    simulate_inventory_policy_cpu, validate_inventory_config, InventoryConstraintEvents,
+    InventoryConstraints, InventoryCostConfig, InventoryDemandDistribution, InventoryMetricSummary,
+    InventoryPathResult, InventoryPathTrace, InventoryPeriodTrace, InventoryPolicy,
+    InventoryRunManifest, InventoryShortagePolicy, InventorySimulationConfig,
+    InventorySimulationError, InventorySimulationResult, InventorySimulationSummary,
+    InventoryTraceConfig, InventoryValidationDiagnostic,
 };

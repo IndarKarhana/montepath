@@ -235,6 +235,35 @@ See `docs/non-cuda-v1-completion-plan.md` for the focused release plan.
   CPU-native and feature-gated Metal production paths plus honest CUDA
   boundaries.
 
+## Phase 13: Inventory And Supply-Chain Simulation
+
+See `docs/inventory-simulation-plan.md` for the complete semantic,
+correctness, performance, API, agent, and Metal execution plan.
+
+- `done` Establish the periodic-review inventory semantic contract and
+  first typed CPU reference-kernel foundation.
+- `done` Add deterministic fixtures, invariant tests, and external Python
+  reference comparisons.
+- `done` Add Python/native bridge surfaces and production backend policy.
+- `done` Add identical-semantics NumPy/Numba competitiveness benchmarks and
+  conditional gates.
+- `done` Add bounded selected-path period traces without changing the default
+  hot path or aggregate results.
+- `done` Add committed inventory capability metadata and deterministic reference
+  fixture coverage.
+- `done` Add inventory-focused agent/MCP validation and simulation tools with
+  schemas, execution limits, truncated path output, structured failure policy,
+  compatibility tests, and installed-package smoke coverage.
+- `done` Publish release-mode inventory benchmark artifacts with explicit
+  hardware-local interpretation and populated NumPy/Numba comparison lanes.
+- `done` Smoke the exact source distribution, platform wheels, and strict
+  macOS Metal bridge before trusted PyPI publication.
+- `todo` Add common-random-number policy comparison, policy sweeps, and
+  efficient-frontier reporting.
+- `todo` Add Markov regime-switching demand and random lead times.
+- `todo` Evaluate and implement a strict native Metal inventory path only when
+  bounded state layout and benchmark evidence support it.
+
 ## Ongoing Engineering Quality Track
 
 - `in-progress` Test-driven development as default coding workflow.

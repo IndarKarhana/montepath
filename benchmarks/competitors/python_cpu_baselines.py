@@ -234,6 +234,144 @@ def benchmark_numba_terminal(n_paths: int, repeats: int, seed: int) -> LibraryRe
     )
 
 
+def benchmark_inventory_numpy(
+    n_paths: int, n_periods: int, repeats: int, seed: int
+) -> LibraryResult:
+    import numpy as np
+
+    times: list[float] = []
+    mean_total_costs: list[float] = []
+    for rep in range(repeats):
+        rng = np.random.default_rng(seed + rep)
+        start = time.perf_counter()
+        on_hand = np.full(n_paths, 100.0, dtype=np.float64)
+        on_order = np.zeros(n_paths, dtype=np.float64)
+        arrivals = np.zeros(n_paths, dtype=np.float64)
+        total_cost = np.zeros(n_paths, dtype=np.float64)
+
+        for period in range(n_periods):
+            receipt = arrivals
+            arrivals = np.zeros(n_paths, dtype=np.float64)
+            on_order -= receipt
+            on_hand += receipt
+
+            demand = np.maximum(0.0, 10.0 + 2.0 * rng.standard_normal(n_paths))
+            fulfilled = np.minimum(demand, on_hand)
+            on_hand -= fulfilled
+            unmet = demand - fulfilled
+
+            inventory_position = on_hand + on_order
+            order_mask = inventory_position <= 50.0
+            order_quantity = np.where(
+                order_mask,
+                np.ceil(np.maximum(0.0, 100.0 - inventory_position)),
+                0.0,
+            )
+            arrivals += order_quantity
+            on_order += order_quantity
+
+            if period >= 4:
+                total_cost += on_hand * 0.1
+                total_cost += unmet * 2.0
+                total_cost += np.where(
+                    order_quantity > 0.0,
+                    5.0 + order_quantity * 0.01,
+                    0.0,
+                )
+
+        elapsed = (time.perf_counter() - start) * 1000.0
+        times.append(elapsed)
+        mean_total_costs.append(float(np.mean(total_cost)))
+
+    return LibraryResult(
+        library="numpy",
+        methodology="inventory_periodic_review_fixed_lead_time",
+        available=True,
+        runtime_ms=sum(times) / len(times),
+        price=None,
+        stderr=None,
+        note=(
+            "Vectorized NumPy inventory baseline with identical periodic-review, "
+            "warm-up, lead-time, case-pack, and cost semantics."
+        ),
+        metric_name="mean_total_cost",
+        metric_value=sum(mean_total_costs) / len(mean_total_costs),
+        reproducibility=(
+            "statistically reproducible for fixed NumPy version and seed; "
+            "random paths are not identical to montepath Rust streams"
+        ),
+    )
+
+
+def benchmark_inventory_numba(
+    n_paths: int, n_periods: int, repeats: int, seed: int
+) -> LibraryResult:
+    import numba as nb
+    import numpy as np
+
+    @nb.njit(cache=True)
+    def _simulate(seed_local: int, path_count: int, period_count: int) -> float:
+        np.random.seed(seed_local)
+        total_cost_sum = 0.0
+        for _ in range(path_count):
+            on_hand = 100.0
+            on_order = 0.0
+            arrival = 0.0
+            total_cost = 0.0
+            for period in range(period_count):
+                receipt = arrival
+                arrival = 0.0
+                on_order -= receipt
+                on_hand += receipt
+
+                demand = max(0.0, 10.0 + 2.0 * np.random.normal())
+                fulfilled = min(demand, on_hand)
+                on_hand -= fulfilled
+                unmet = demand - fulfilled
+
+                inventory_position = on_hand + on_order
+                order_quantity = 0.0
+                if inventory_position <= 50.0:
+                    order_quantity = math.ceil(max(0.0, 100.0 - inventory_position))
+                    arrival += order_quantity
+                    on_order += order_quantity
+
+                if period >= 4:
+                    total_cost += on_hand * 0.1 + unmet * 2.0
+                    if order_quantity > 0.0:
+                        total_cost += 5.0 + order_quantity * 0.01
+            total_cost_sum += total_cost
+        return total_cost_sum / path_count
+
+    _simulate(seed, min(n_paths, 256), min(n_periods, 16))
+    times: list[float] = []
+    mean_total_costs: list[float] = []
+    for rep in range(repeats):
+        start = time.perf_counter()
+        mean_total_cost = _simulate(seed + rep, n_paths, n_periods)
+        times.append((time.perf_counter() - start) * 1000.0)
+        mean_total_costs.append(float(mean_total_cost))
+
+    return LibraryResult(
+        library="numba",
+        methodology="inventory_periodic_review_fixed_lead_time",
+        available=True,
+        runtime_ms=sum(times) / len(times),
+        price=None,
+        stderr=None,
+        note=(
+            "Compiled Numba inventory loop with identical periodic-review, warm-up, "
+            "lead-time, case-pack, and cost semantics; timing excludes JIT warm-up."
+        ),
+        metric_name="mean_total_cost",
+        metric_value=sum(mean_total_costs) / len(mean_total_costs),
+        reproducibility=(
+            "statistically reproducible for fixed Numba/NumPy versions and seed; "
+            "random paths are not identical to montepath Rust streams"
+        ),
+    )
+
+
 def benchmark_scipy_qmc_generation(
     method: str, n_points: int, dimensions: int, repeats: int, seed: int
 ) -> LibraryResult:
@@ -889,6 +1027,8 @@ def main() -> int:
     parser.add_argument("--steps", type=int, required=True)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--inventory-paths", type=int, default=10_000)
+    parser.add_argument("--inventory-periods", type=int, default=104)
     args = parser.parse_args()
 
     results: list[LibraryResult] = []
@@ -896,19 +1036,49 @@ def main() -> int:
     if has_module("numpy"):
         results.append(benchmark_numpy(args.paths, args.steps, args.repeats, args.seed))
         results.append(benchmark_numpy_terminal(args.paths, args.repeats, args.seed))
+        results.append(
+            benchmark_inventory_numpy(
+                args.inventory_paths,
+                args.inventory_periods,
+                args.repeats,
+                args.seed,
+            )
+        )
     else:
         results.append(unavailable("numpy", "stepwise_paths", "package not installed"))
         results.append(
             unavailable("numpy", "terminal_distribution", "package not installed")
         )
+        results.append(
+            unavailable(
+                "numpy",
+                "inventory_periodic_review_fixed_lead_time",
+                "package not installed",
+            )
+        )
 
     if has_module("numba"):
         results.append(benchmark_numba(args.paths, args.steps, args.repeats, args.seed))
         results.append(benchmark_numba_terminal(args.paths, args.repeats, args.seed))
+        results.append(
+            benchmark_inventory_numba(
+                args.inventory_paths,
+                args.inventory_periods,
+                args.repeats,
+                args.seed,
+            )
+        )
     else:
         results.append(unavailable("numba", "stepwise_paths", "package not installed"))
         results.append(
             unavailable("numba", "terminal_distribution", "package not installed")
+        )
+        results.append(
+            unavailable(
+                "numba",
+                "inventory_periodic_review_fixed_lead_time",
+                "package not installed",
+            )
         )
 
     if has_module("QuantLib"):
@@ -1084,6 +1254,8 @@ def main() -> int:
             "paths": args.paths,
             "steps": args.steps,
             "repeats": args.repeats,
+            "inventory_paths": args.inventory_paths,
+            "inventory_periods": args.inventory_periods,
             "package_versions": {
                 "numpy": package_version("numpy"),
                 "numba": package_version("numba"),

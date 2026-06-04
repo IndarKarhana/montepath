@@ -92,5 +92,49 @@
       ],
       "reference": "black_scholes_european_call_atm_1y"
     }
+  },
+  "inventory_validate_request": {
+    "config": {
+      "n_paths": 10000,
+      "n_periods": 104,
+      "demand": {
+        "distribution": "normal",
+        "mean": 100.0,
+        "std_dev": 20.0
+      },
+      "policy": {
+        "reorder_point": 300.0,
+        "order_up_to": 700.0
+      }
+    },
+    "backend": "auto"
+  },
+  "inventory_simulate_request": {
+    "config": {
+      "n_paths": 10000,
+      "n_periods": 104,
+      "seed": 42,
+      "trace": {
+        "path_indices": [
+          0
+        ],
+        "max_periods": 12
+      }
+    },
+    "backend": "auto",
+    "max_returned_paths": 10
+  },
+  "inventory_response_contract": {
+    "tool_ids": [
+      "montepath.inventory.validate",
+      "montepath.inventory.simulate"
+    ],
+    "determinism": "deterministic for identical config, seed, backend, and runtime version",
+    "path_output": "bounded by max_returned_paths; aggregate summary remains complete",
+    "trace_output": "bounded by trace path and period limits",
+    "unsupported_backends": [
+      "apple_metal",
+      "cuda"
+    ]
   }
 }

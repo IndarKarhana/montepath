@@ -43,6 +43,10 @@ Current limits:
 
 - maximum request size: `1_000_000` bytes
 - maximum `config.n_paths` through MCP: `1_000_000`
+- inventory maximum paths: `100_000`
+- inventory maximum periods: `1_000`
+- inventory maximum path-period operations: `10_000_000`
+- inventory maximum returned paths: `100`
 - full benchmark execution is blocked through MCP; use dry-run benchmark
   metadata or run the benchmark harness directly
 
@@ -68,6 +72,8 @@ Available tools:
 | `montepath.compare_methods` | Compare measured method/runtime tradeoffs for a workload. | deterministic |
 | `montepath.why_not_faster` | Explain why a requested method is not the measured recommendation. | deterministic |
 | `montepath.mlmc_calibration` | Report estimated-vs-realized MLMC/MLQMC calibration evidence. | deterministic |
+| `montepath.inventory.validate` | Validate inventory semantics, limits, and backend support. | deterministic |
+| `montepath.inventory.simulate` | Execute bounded CPU-native or Python-reference inventory simulation. | deterministic for same config and seed |
 
 ## Reproducibility Manifest
 
@@ -118,6 +124,7 @@ without executing simulations or making timing claims.
 - `arithmetic_asian_call`
 - `down_and_out_call`
 - `european_call_greeks`
+- `inventory_policy` through the dedicated inventory tools and production API
 
 Unsupported workloads return `ok=false` with a diagnostic code such as
 `MC_AGENT_UNSUPPORTED_WORKLOAD`.

@@ -1,6 +1,25 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
+
+- Added a Rust-first periodic-review inventory and supply-chain simulation
+  runtime with deterministic CPU path partitioning, structured validation,
+  manifests, KPIs, costs, and constraint telemetry.
+- Added typed Python inventory configs, a transparent scalar reference,
+  Rust-native extension validation/execution functions, production backend
+  selection, and installed-package smoke coverage.
+- Added identical-semantics NumPy and Numba inventory competitor lanes,
+  conditional competitiveness gates, and inventory implementation docs.
+- Added opt-in bounded per-period inventory traces without changing default
+  hot-path results.
+- Added dedicated `montepath.inventory.validate` and
+  `montepath.inventory.simulate` agent/MCP tools with schemas, backend policy,
+  request limits, truncated path output, structured failures, and installed
+  package coverage.
+- Added a committed inventory capability-catalog entry and trusted deterministic
+  reference fixture.
+- Added exact-artifact source, wheel, and strict macOS Metal bridge smoke checks
+  to the trusted-publishing workflow.
 
 ## 0.1.2
 

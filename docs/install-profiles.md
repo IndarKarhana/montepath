@@ -33,17 +33,20 @@ These helpers are also available to agents through `montepath.capabilities` and
 
 ## Apple Metal
 
-Apple Metal execution is currently exposed through Rust feature gates and
-hardware-aware benchmark runs:
+Supported macOS wheels are built with the `metal-native` feature and expose
+strict Python bridge functions for the documented GBM option family. Inspect
+`backend_capabilities()` because Metal availability still depends on the host,
+wheel, and requested workload.
+
+Metal development and hardware-aware benchmark runs use:
 
 ```bash
 cargo test -p mc-core --features metal-native
 cargo run -p mc-bench --release --features metal-native -- --output benchmarks/release-results.json
 ```
 
-Python packaging for native Metal wheels is planned. Until then, Python users
-should treat Metal as a benchmarked Rust runtime capability, not a pip-installed
-accelerator profile.
+Inventory and the wider CPU workload catalog do not silently fall back when
+Metal is requested but unsupported.
 
 ## Future CUDA
 

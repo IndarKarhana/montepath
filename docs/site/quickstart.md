@@ -66,6 +66,27 @@ print(report.explain())
 The Python helpers are dependency-free reference UX helpers. Use benchmark
 artifacts for performance claims.
 
+## Simulate Inventory Policy
+
+```python
+from montepath import InventorySimulationConfig, InventoryTraceConfig
+from montepath import simulate_inventory_policy
+
+config = InventorySimulationConfig(
+    n_paths=10_000,
+    n_periods=104,
+    trace=InventoryTraceConfig(path_indices=(0,), max_periods=12),
+)
+result = simulate_inventory_policy(config)
+
+print(result.summary["fill_rate"])
+print(result.traces[0]["periods"])
+```
+
+Inventory policy simulation is Rust-backed on CPU and has a transparent scalar
+Python reference for audits. Metal and CUDA are explicitly unsupported for
+this workload.
+
 ## Check Production Capability
 
 ```python
@@ -79,9 +100,9 @@ print(selection.backend_id, selection.execution_mode)
 ```
 
 For production Python use, `cpu_native` is the fast installed-package path when
-`montepath._native` is available. Apple Metal is currently validated through
-Rust feature-gated hardware workflows, not the PyPI Python bridge. CUDA native
-execution is deferred.
+`montepath._native` is available. Supported macOS wheels expose strict Apple
+Metal bridge functions for the documented GBM option family. CUDA native
+execution is deferred, and unsupported Metal workload requests remain explicit.
 
 ## Run The MCP Server
 

@@ -15,6 +15,12 @@
 - `ArithmeticAsianMlmcConfig`
 - `EuropeanCallSweepScenario`
 - `EuropeanCallParameterSweepConfig`
+- `InventoryDemandConfig`
+- `InventoryPolicy`
+- `InventoryConstraints`
+- `InventoryCostConfig`
+- `InventoryTraceConfig`
+- `InventorySimulationConfig`
 
 Each config is an immutable dataclass with explicit seed, path count, step
 count, and model parameters.
@@ -63,6 +69,20 @@ Each returns `NativeWorkloadResult`:
 - `warnings`
 - `explain()`
 - `reproduce()`
+
+## Inventory Helpers
+
+- `validate_inventory_config(config=None, native_module="montepath._native", **overrides)`
+- `simulate_inventory_policy(config=None, native_module="montepath._native", **overrides)`
+- `simulate_inventory_policy_reference(config=None, **overrides)`
+
+`simulate_inventory_policy()` is the Rust-backed production CPU path.
+`simulate_inventory_policy_reference()` is the dependency-free scalar audit
+path. Both return `InventorySimulationResult` with per-path results, aggregate
+summary distributions, constraint events, a reproduction manifest, and
+explicitly bounded selected-path traces when `InventoryTraceConfig` is set.
+Inventory Metal and CUDA execution are unsupported and never selected through
+silent fallback.
 
 ## Greek Helpers
 
@@ -119,6 +139,8 @@ back from unavailable Metal or CUDA requests.
 - `agent_compare_methods(request)`
 - `agent_why_not_faster(request)`
 - `agent_mlmc_calibration(request=None)`
+- `agent_inventory_validate(request)`
+- `agent_inventory_simulate(request)`
 
 Benchmark helpers call the Rust benchmark harness and should be used for
 local audit or release artifact generation, not as a low-latency API.

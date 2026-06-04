@@ -6,10 +6,13 @@ use mc_core::{
     down_and_out_call_price_mc_cpu, european_call_price_mc_cpu, gaussian_uncertainty_moments_cpu,
     heston_european_call_price_mc_cpu, lookback_call_price_mc_cpu,
     merton_jump_diffusion_call_price_mc_cpu, price_european_call_parameter_sweep_cpu,
+    simulate_inventory_policy_cpu, validate_inventory_config as validate_inventory_config_rust,
     AmericanPutConfig, ArithmeticAsianCallConfig, ArithmeticAsianMlmcConfig, BasketCallConfig,
     BermudanPutConfig, DownAndOutCallConfig, EuropeanCallConfig, EuropeanCallParameterSweepConfig,
     EuropeanCallSweepScenario, GaussianUncertaintyConfig, HestonEuropeanCallConfig,
-    LookbackCallConfig, MertonJumpDiffusionCallConfig, MonteCarloTechnique, SamplingMethod,
+    InventoryConstraints, InventoryCostConfig, InventoryDemandDistribution, InventoryPolicy,
+    InventoryShortagePolicy, InventorySimulationConfig, InventoryTraceConfig, LookbackCallConfig,
+    MertonJumpDiffusionCallConfig, MonteCarloTechnique, SamplingMethod,
 };
 #[cfg(feature = "metal-native")]
 use mc_core::{execute_apple_metal_native, BackendExecutionInput};
@@ -244,6 +247,41 @@ fn price_european_call_parameter_sweep(
     )
 }
 
+#[pyfunction(name = "validate_inventory_config")]
+fn validate_inventory_config_py(py: Python<'_>, config: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+    let cfg = inventory_config(config)?;
+    let diagnostics = validate_inventory_config_rust(&cfg);
+    json_to_py(
+        py,
+        json!({
+            "ok": diagnostics.is_empty(),
+            "schema_version": "inventory-validation.v1",
+            "diagnostics": diagnostics,
+            "manifest": manifest("inventory_policy", "validate_inventory_config", &cfg)?,
+            "warnings": [],
+        }),
+    )
+}
+
+#[pyfunction(name = "simulate_inventory_policy")]
+fn simulate_inventory_policy_py(py: Python<'_>, config: &Bound<'_, PyAny>) -> PyResult<PyObject> {
+    let cfg = inventory_config(config)?;
+    let result = simulate_inventory_policy_cpu(&cfg).map_err(|error| {
+        PyValueError::new_err(
+            serde_json::to_string(&error)
+                .unwrap_or_else(|_| "inventory simulation validation failed".to_string()),
+        )
+    })?;
+    workload_response(
+        py,
+        "inventory_policy",
+        "simulate_inventory_policy",
+        &cfg,
+        result,
+        None,
+    )
+}
+
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
@@ -265,6 +303,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(price_european_call_parameter_sweep, m)?)?;
     m.add_function(wrap_pyfunction!(gaussian_uncertainty_moments, m)?)?;
     m.add_function(wrap_pyfunction!(arithmetic_asian_mlmc, m)?)?;
+    m.add_function(wrap_pyfunction!(validate_inventory_config_py, m)?)?;
+    m.add_function(wrap_pyfunction!(simulate_inventory_policy_py, m)?)?;
     Ok(())
 }
 
@@ -498,6 +538,96 @@ fn european_parameter_sweep_config(
         }
     }
     Ok(cfg)
+}
+
+fn inventory_config(config: &Bound<'_, PyAny>) -> PyResult<InventorySimulationConfig> {
+    let mut cfg = InventorySimulationConfig::default();
+    cfg.n_paths = get_usize(config, &["n_paths", "paths"], cfg.n_paths)?;
+    cfg.n_periods = get_usize(config, &["n_periods", "periods"], cfg.n_periods)?;
+    cfg.warmup_periods = get_usize(config, &["warmup_periods"], cfg.warmup_periods)?;
+    cfg.seed = get_u64(config, &["seed"], cfg.seed)?;
+    cfg.n_threads = get_usize(config, &["n_threads"], cfg.n_threads)?;
+    cfg.initial_on_hand = get_f64(config, &["initial_on_hand"], cfg.initial_on_hand)?;
+    cfg.initial_backorder = get_f64(config, &["initial_backorder"], cfg.initial_backorder)?;
+    cfg.lead_time_periods = get_usize(config, &["lead_time_periods"], cfg.lead_time_periods)?;
+    if let Some(value) = lookup(config, &["shortage_policy"])? {
+        cfg.shortage_policy = parse_inventory_shortage_policy(&value.extract::<String>()?)?;
+    }
+    if let Some(demand) = lookup(config, &["demand"])? {
+        cfg.demand = inventory_demand(&demand)?;
+    }
+    if let Some(policy) = lookup(config, &["policy"])? {
+        cfg.policy = InventoryPolicy {
+            reorder_point: get_f64(&policy, &["reorder_point"], cfg.policy.reorder_point)?,
+            order_up_to: get_f64(&policy, &["order_up_to"], cfg.policy.order_up_to)?,
+        };
+    }
+    if let Some(constraints) = lookup(config, &["constraints"])? {
+        cfg.constraints = InventoryConstraints {
+            minimum_order_quantity: get_f64(
+                &constraints,
+                &["minimum_order_quantity"],
+                cfg.constraints.minimum_order_quantity,
+            )?,
+            case_pack: get_f64(&constraints, &["case_pack"], cfg.constraints.case_pack)?,
+            supplier_capacity_per_period: get_optional_f64(
+                &constraints,
+                &["supplier_capacity_per_period"],
+            )?,
+            warehouse_capacity: get_optional_f64(&constraints, &["warehouse_capacity"])?,
+        };
+    }
+    if let Some(costs) = lookup(config, &["costs"])? {
+        cfg.costs = InventoryCostConfig {
+            holding_cost_per_unit_period: get_f64(
+                &costs,
+                &["holding_cost_per_unit_period"],
+                cfg.costs.holding_cost_per_unit_period,
+            )?,
+            backorder_cost_per_unit_period: get_f64(
+                &costs,
+                &["backorder_cost_per_unit_period"],
+                cfg.costs.backorder_cost_per_unit_period,
+            )?,
+            lost_sale_cost_per_unit: get_f64(
+                &costs,
+                &["lost_sale_cost_per_unit"],
+                cfg.costs.lost_sale_cost_per_unit,
+            )?,
+            fixed_order_cost: get_f64(&costs, &["fixed_order_cost"], cfg.costs.fixed_order_cost)?,
+            variable_order_cost_per_unit: get_f64(
+                &costs,
+                &["variable_order_cost_per_unit"],
+                cfg.costs.variable_order_cost_per_unit,
+            )?,
+        };
+    }
+    if let Some(trace) = lookup(config, &["trace"])? {
+        cfg.trace = InventoryTraceConfig {
+            path_indices: match lookup(&trace, &["path_indices"])? {
+                Some(value) => value.extract::<Vec<usize>>()?,
+                None => Vec::new(),
+            },
+            max_periods: get_usize(&trace, &["max_periods"], 0)?,
+        };
+    }
+    Ok(cfg)
+}
+
+fn inventory_demand(config: &Bound<'_, PyAny>) -> PyResult<InventoryDemandDistribution> {
+    let distribution = get_string(config, &["distribution"], "normal".to_string())?;
+    match normalize(&distribution).as_str() {
+        "deterministic" => Ok(InventoryDemandDistribution::Deterministic {
+            units: get_f64(config, &["units"], 0.0)?,
+        }),
+        "normal" => Ok(InventoryDemandDistribution::Normal {
+            mean: get_f64(config, &["mean"], 10.0)?,
+            std_dev: get_f64(config, &["std_dev"], 2.0)?,
+        }),
+        _ => Err(PyValueError::new_err(format!(
+            "unsupported inventory demand distribution '{distribution}'"
+        ))),
+    }
 }
 
 fn sweep_scenario(config: &Bound<'_, PyAny>) -> PyResult<EuropeanCallSweepScenario> {
@@ -801,6 +931,16 @@ fn parse_european_method(value: &str) -> PyResult<mc_core::EuropeanCallMethod> {
         "stepwise_paths" => Ok(mc_core::EuropeanCallMethod::StepwisePaths),
         _ => Err(PyValueError::new_err(format!(
             "unsupported European call method '{value}'"
+        ))),
+    }
+}
+
+fn parse_inventory_shortage_policy(value: &str) -> PyResult<InventoryShortagePolicy> {
+    match normalize(value).as_str() {
+        "backorder" => Ok(InventoryShortagePolicy::Backorder),
+        "lost_sales" => Ok(InventoryShortagePolicy::LostSales),
+        _ => Err(PyValueError::new_err(format!(
+            "unsupported inventory shortage policy '{value}'"
         ))),
     }
 }

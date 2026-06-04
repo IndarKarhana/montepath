@@ -30,13 +30,15 @@ unsupported magic.
 - benchmark-audited method comparison
 - local MCP tools for LLM agents
 - production capability checks before CPU-native or agent execution
+- bounded inventory-policy simulation through Python, native CPU, and dedicated
+  MCP tools
 - research workflows where explicit manifests and caveats matter
 
 ## Not Yet A Fit For
 
 - production promises across arbitrary Monte Carlo models
 - native CUDA acceleration
-- pip-installed Apple Metal acceleration
+- native Metal inventory acceleration
 - broad QuantLib-style market convention coverage
 - unsupported Python callbacks or arbitrary control-flow compilation
 - claims of universal QMC or MLMC superiority
@@ -48,8 +50,9 @@ When publishing or announcing, use alpha language:
 - say `alpha`, `preview`, or `experimental`
 - tie performance claims to committed benchmark artifacts
 - state that native CUDA is deferred
-- state that Apple Metal is benchmarked in Rust feature-gated paths, not yet a
-  public Python accelerator wheel
+- state that Apple Metal is available from supported macOS wheels for the
+  documented GBM option family, while unsupported workloads such as inventory
+  fail explicitly
 - state that public APIs may evolve before `1.0`
 
 Avoid:
@@ -83,4 +86,7 @@ Research/runtime roadmap:
 - broader MLMC/MLQMC calibration beyond arithmetic Asian calls
 - more analytic realized-error studies where references exist
 - wider non-option uncertainty-propagation examples
-- more native Metal workload families and eventual Python packaging
+- more native Metal workload families beyond the currently packaged GBM option
+  bridge
+- inventory policy comparison, random lead times, regime-switching demand, and
+  evidence-gated Metal evaluation

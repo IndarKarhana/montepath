@@ -32,6 +32,8 @@ KNOWN_NATIVE_FUNCTIONS = (
     "price_european_call_parameter_sweep",
     "gaussian_uncertainty_moments",
     "arithmetic_asian_mlmc",
+    "validate_inventory_config",
+    "simulate_inventory_policy",
 )
 
 

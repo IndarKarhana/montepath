@@ -627,6 +627,64 @@
         "arbitrary response functions",
         "non-Gaussian analytic fixtures"
       ]
+    },
+    {
+      "workload_id": "inventory_policy",
+      "display_name": "Single-SKU periodic-review inventory policy simulation",
+      "product_family": "inventory_and_supply_chain",
+      "model_family": "periodic_review_fixed_lead_time",
+      "payoff": "service, stockout, inventory, ordering, and cost metrics under an (s, S) policy",
+      "runtime_surfaces": [
+        "simulate_inventory_policy_cpu",
+        "simulate_inventory_policy",
+        "simulate_inventory_policy_reference",
+        "agent_inventory_validate",
+        "agent_inventory_simulate"
+      ],
+      "backend_support": {
+        "cpu_native": "supported",
+        "python_reference": "supported_for_audits",
+        "apple_metal": "not_yet_native",
+        "nvidia_cuda": "not_planned_for_current_scope"
+      },
+      "sampling_support": [
+        "deterministic_demand",
+        "pseudorandom_normal_demand"
+      ],
+      "variance_reduction_support": [],
+      "greek_estimators": {
+        "bump_and_revalue": {
+          "status": "not_applicable",
+          "reason": "inventory workload reports operational KPIs rather than financial Greeks"
+        },
+        "pathwise": {
+          "status": "not_applicable",
+          "reason": "inventory workload reports operational KPIs rather than financial Greeks"
+        },
+        "likelihood_ratio": {
+          "status": "not_applicable",
+          "reason": "inventory workload reports operational KPIs rather than financial Greeks"
+        }
+      },
+      "reference_status": "trusted_deterministic_trace_and_external_python_reference",
+      "reference_fixture_ids": [
+        "inventory_periodic_review_deterministic_trace_v1"
+      ],
+      "quantlib_lanes": [],
+      "assumptions": [
+        "single SKU",
+        "period order is receive-demand-fulfill-review-order-record",
+        "fixed lead time",
+        "deterministic or non-negative clipped Normal demand",
+        "orders arrive no earlier than the next period"
+      ],
+      "unsupported_states": [
+        "random lead times",
+        "regime-switching or seasonal demand",
+        "multi-SKU shared capacity",
+        "policy optimization and efficient-frontier search",
+        "native Metal execution"
+      ]
     }
   ]
 }

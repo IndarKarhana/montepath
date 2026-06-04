@@ -7,6 +7,8 @@ from montepath import (
     agent_capabilities,
     agent_cost_frontier,
     agent_execute,
+    agent_inventory_simulate,
+    agent_inventory_validate,
     agent_mlmc_calibration,
     agent_plan,
     agent_planner_evidence,
@@ -42,6 +44,8 @@ class AgentSurfaceTests(unittest.TestCase):
         self.assertIn("montepath.capabilities", tool_names)
         self.assertIn("montepath.production_check", tool_names)
         self.assertIn("montepath.validation_report", tool_names)
+        self.assertIn("montepath.inventory.validate", tool_names)
+        self.assertIn("montepath.inventory.simulate", tool_names)
 
     def test_json_schema_export_contains_execute_contract(self) -> None:
         schemas = export_json_schemas()
@@ -53,6 +57,8 @@ class AgentSurfaceTests(unittest.TestCase):
         self.assertIn("montepath.capabilities.response", schemas)
         self.assertIn("montepath.production_check.response", schemas)
         self.assertIn("montepath.validation_report.response", schemas)
+        self.assertIn("montepath.inventory.validate.request", schemas)
+        self.assertIn("montepath.inventory.simulate.request", schemas)
         self.assertEqual(schemas["montepath.execute.request"]["type"], "object")
         self.assertIn("workload", schemas["montepath.execute.request"]["required"])
 
@@ -157,6 +163,35 @@ class AgentSurfaceTests(unittest.TestCase):
             "montepath-numerical-validation.v1",
         )
         self.assertGreater(response["result"]["fixture_count"], 0)
+
+    def test_inventory_agent_tools_are_bounded_and_structured(self) -> None:
+        request = {
+            "config": {
+                "n_paths": 4,
+                "n_periods": 3,
+                "initial_on_hand": 10.0,
+                "demand": {"distribution": "deterministic", "units": 4.0},
+                "policy": {"reorder_point": 4.0, "order_up_to": 10.0},
+                "trace": {"path_indices": [0], "max_periods": 2},
+            },
+            "backend": "python_reference",
+            "max_returned_paths": 2,
+        }
+
+        validation = agent_inventory_validate(request)
+        simulation = agent_inventory_simulate(request)
+
+        self.assertTrue(validation["ok"])
+        self.assertTrue(simulation["ok"])
+        self.assertEqual(simulation["manifest"]["tool"], "montepath.inventory.simulate")
+        self.assertEqual(simulation["result"]["returned_path_count"], 2)
+        self.assertEqual(simulation["result"]["total_path_count"], 4)
+        self.assertTrue(simulation["result"]["paths_truncated"])
+        self.assertEqual(len(simulation["result"]["traces"]), 1)
+
+        malformed = agent_inventory_validate({"config": {"n_paths": "many"}})
+        self.assertFalse(malformed["ok"])
+        self.assertEqual(malformed["diagnostics"][0]["code"], "MC_CONFIG_SHAPE")
 
 
 if __name__ == "__main__":

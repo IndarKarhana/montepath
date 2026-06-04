@@ -80,6 +80,9 @@ Current status:
 - `montepath-mcp` packages the current agent tools behind a dependency-free
   MCP-compatible stdio server with request/response schemas, execution limits,
   version metadata, health checks, and structured failure payloads.
+- Inventory exposes dedicated `montepath.inventory.validate` and
+  `montepath.inventory.simulate` tools with path, period, operation, trace, and
+  returned-result bounds plus explicit backend selection.
 - Remaining agent work is now integration hardening: client-specific examples,
   broader smoke coverage, authentication or sandbox policy where deployments
   need it, and compatibility testing against MCP clients.

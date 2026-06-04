@@ -23,6 +23,8 @@ class McpServerTests(unittest.TestCase):
         self.assertIn("montepath.capabilities", names)
         self.assertIn("montepath.production_check", names)
         self.assertIn("montepath.validation_report", names)
+        self.assertIn("montepath.inventory.validate", names)
+        self.assertIn("montepath.inventory.simulate", names)
         validate = next(tool for tool in tools if tool["name"] == "montepath.validate")
         self.assertEqual(validate["inputSchema"]["type"], "object")
         self.assertIn("annotations", validate)
@@ -86,6 +88,41 @@ class McpServerTests(unittest.TestCase):
         self.assertEqual(limited_payload["diagnostics"][0]["code"], "MC_MCP_LIMIT_PATHS")
         self.assertTrue(unknown["result"]["isError"])
         self.assertTrue(limited["result"]["isError"])
+
+    def test_inventory_limits_cover_periods_operations_and_returned_paths(self) -> None:
+        cases = (
+            (
+                {"config": {"n_paths": 10, "n_periods": 1_001}},
+                "MC_MCP_LIMIT_INVENTORY_PERIODS",
+            ),
+            (
+                {"config": {"n_paths": 100_000, "n_periods": 101}},
+                "MC_MCP_LIMIT_INVENTORY_OPERATIONS",
+            ),
+            (
+                {
+                    "config": {"n_paths": 10, "n_periods": 10},
+                    "max_returned_paths": 101,
+                },
+                "MC_MCP_LIMIT_INVENTORY_RETURNED_PATHS",
+            ),
+        )
+        for arguments, expected_code in cases:
+            with self.subTest(expected_code=expected_code):
+                response = handle_jsonrpc(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": expected_code,
+                        "method": "tools/call",
+                        "params": {
+                            "name": "montepath.inventory.simulate",
+                            "arguments": arguments,
+                        },
+                    }
+                )
+                payload = json.loads(response["result"]["content"][0]["text"])
+                self.assertEqual(payload["diagnostics"][0]["code"], expected_code)
+                self.assertTrue(response["result"]["isError"])
 
 
 if __name__ == "__main__":

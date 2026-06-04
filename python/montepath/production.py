@@ -16,6 +16,12 @@ from .native import (
     native_runtime_status,
     require_native_runtime,
 )
+from .inventory import (
+    InventorySimulationConfig,
+    simulate_inventory_policy,
+    simulate_inventory_policy_reference,
+    validate_inventory_config,
+)
 from .pricing import (
     AmericanPutConfig,
     ArithmeticAsianCallConfig,
@@ -52,6 +58,7 @@ PYTHON_REFERENCE_WORKLOADS = {
     "arithmetic_asian_call",
     "down_and_out_call",
     "european_call_greeks",
+    "inventory_policy",
 }
 
 NATIVE_FUNCTION_BY_WORKLOAD = {
@@ -67,6 +74,7 @@ NATIVE_FUNCTION_BY_WORKLOAD = {
     "european_call_parameter_sweep": "price_european_call_parameter_sweep",
     "gaussian_uncertainty_moments": "gaussian_uncertainty_moments",
     "arithmetic_asian_mlmc": "arithmetic_asian_mlmc",
+    "inventory_policy": "simulate_inventory_policy",
 }
 
 METAL_WORKLOADS = {
@@ -690,6 +698,18 @@ def _selection_error(
 
 
 def _validate_config(workload: str, config: Mapping[str, Any]) -> list[dict[str, str]]:
+    if workload == "inventory_policy":
+        try:
+            return [dict(item) for item in validate_inventory_config(**config)]
+        except (TypeError, ValueError) as exc:
+            return [
+                {
+                    "code": "MC_CONFIG_SHAPE",
+                    "message": str(exc),
+                    "suggestion": "Use documented inventory config keys and value types.",
+                }
+            ]
+
     cls: type[Any] | None
     cls = {
         "european_call": EuropeanCallConfig,
@@ -705,6 +725,7 @@ def _validate_config(workload: str, config: Mapping[str, Any]) -> list[dict[str,
         "european_call_parameter_sweep": EuropeanCallParameterSweepConfig,
         "gaussian_uncertainty_moments": GaussianUncertaintyConfig,
         "arithmetic_asian_mlmc": ArithmeticAsianMlmcConfig,
+        "inventory_policy": InventorySimulationConfig,
     }.get(workload)
     if cls is None:
         if workload in NATIVE_FUNCTION_BY_WORKLOAD:
@@ -837,6 +858,19 @@ def _execute_selected_workload(
     elif workload == "arithmetic_asian_mlmc":
         native_result = price_arithmetic_asian_mlmc(**config, native_module=native_module)
         return _native_workload_payload(native_result, backend_id)
+    elif workload == "inventory_policy":
+        inventory_result = (
+            simulate_inventory_policy(**config, native_module=native_module)
+            if backend_id == "cpu_native"
+            else simulate_inventory_policy_reference(**config)
+        )
+        return {
+            "summary": dict(inventory_result.summary),
+            "paths": [dict(path) for path in inventory_result.paths],
+            "traces": [dict(trace) for trace in inventory_result.traces],
+            "manifest": dict(inventory_result.manifest) | {"backend": backend_id},
+            "warnings": list(inventory_result.warnings),
+        }
     else:
         raise ProductionCapabilityError(
             _selection_error(

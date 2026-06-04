@@ -24,7 +24,9 @@ from .planner_intelligence import (
     why_not_faster,
 )
 from .production import (
+    ProductionCapabilityError,
     benchmark_report,
+    execute_workload,
     numerical_validation_report,
     production_status,
     validate_workload_request,
@@ -46,6 +48,10 @@ SUPPORTED_WORKLOADS = {
     "down_and_out_call",
     "european_call_greeks",
 }
+MAX_AGENT_INVENTORY_PATHS = 100_000
+MAX_AGENT_INVENTORY_PERIODS = 1_000
+MAX_AGENT_INVENTORY_PATH_PERIOD_OPERATIONS = 10_000_000
+MAX_AGENT_INVENTORY_RETURNED_PATHS = 100
 
 
 def agent_tool_manifest() -> dict[str, Any]:
@@ -157,6 +163,20 @@ def agent_tool_manifest() -> dict[str, Any]:
             "montepath.mlmc_calibration.response",
             deterministic=True,
         ),
+        _tool(
+            "montepath.inventory.validate",
+            "Validate a bounded periodic-review inventory request and backend policy.",
+            "montepath.inventory.validate.request",
+            "montepath.inventory.validate.response",
+            deterministic=True,
+        ),
+        _tool(
+            "montepath.inventory.simulate",
+            "Execute bounded periodic-review inventory simulation with truncated path output.",
+            "montepath.inventory.simulate.request",
+            "montepath.inventory.simulate.response",
+            deterministic=True,
+        ),
     ]
     return {
         "schema_version": "agent-tools.v1",
@@ -235,6 +255,31 @@ def export_json_schemas() -> dict[str, dict[str, Any]]:
         },
         "additionalProperties": False,
     }
+    inventory_request_properties = {
+        "config": {"type": "object"},
+        "backend": {
+            "type": "string",
+            "enum": ["auto", "cpu_native", "python_reference"],
+        },
+        "native_module": {"type": "string"},
+    }
+    inventory_validate_request_schema = {
+        "type": "object",
+        "properties": inventory_request_properties,
+        "additionalProperties": False,
+    }
+    inventory_simulate_request_schema = {
+        "type": "object",
+        "properties": inventory_request_properties
+        | {
+            "max_returned_paths": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": MAX_AGENT_INVENTORY_RETURNED_PATHS,
+            }
+        },
+        "additionalProperties": False,
+    }
 
     schemas = {
         "montepath.validate.request": request_schema,
@@ -298,6 +343,10 @@ def export_json_schemas() -> dict[str, dict[str, Any]]:
             "additionalProperties": False,
         },
         "montepath.mlmc_calibration.response": response_schema,
+        "montepath.inventory.validate.request": inventory_validate_request_schema,
+        "montepath.inventory.validate.response": response_schema,
+        "montepath.inventory.simulate.request": inventory_simulate_request_schema,
+        "montepath.inventory.simulate.response": response_schema,
     }
     return schemas
 
@@ -616,6 +665,11 @@ def agent_reproduce(request: Mapping[str, Any]) -> dict[str, Any]:
         "arithmetic_asian_call": "price_arithmetic_asian_call",
         "down_and_out_call": "price_down_and_out_call",
         "european_call_greeks": "price_european_call_greeks",
+        "inventory_policy": (
+            "simulate_inventory_policy"
+            if manifest.get("backend") == "cpu_native"
+            else "simulate_inventory_policy_reference"
+        ),
     }.get(workload)
     if helper is None:
         return {
@@ -711,6 +765,114 @@ def agent_mlmc_calibration(request: Mapping[str, Any] | None = None) -> dict[str
         result=result,
         method="mlmc_error_calibration",
     )
+
+
+def agent_inventory_validate(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate an inventory request including bounded agent execution policy."""
+
+    config = _config_payload(request)
+    backend = str(request.get("backend", "auto"))
+    native_module = str(request.get("native_module", "montepath._native"))
+    validation = validate_workload_request(
+        "inventory_policy",
+        config,
+        backend=backend,
+        native_module=native_module,
+    )
+    diagnostics = list(validation.get("diagnostics", ()))
+    diagnostics.extend(_inventory_limit_diagnostics(request))
+    return {
+        "ok": not diagnostics,
+        "result": {
+            "validation": validation,
+            "limits": _inventory_limits(),
+        },
+        "diagnostics": diagnostics,
+        "manifest": _agent_manifest(
+            tool="montepath.inventory.validate",
+            workload="inventory_policy",
+            config=config,
+            method="inventory_validation_only",
+            backend=validation["selection"]["backend_id"],
+            warnings=tuple(validation.get("warnings", ())),
+            reference="inventory_periodic_review_deterministic_trace_v1",
+        ),
+    }
+
+
+def agent_inventory_simulate(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Execute a bounded inventory request and cap returned path-level results."""
+
+    validated = agent_inventory_validate(request)
+    if not validated["ok"]:
+        validated["manifest"]["tool"] = "montepath.inventory.simulate"
+        return validated
+
+    config = _config_payload(request)
+    backend = str(request.get("backend", "auto"))
+    native_module = str(request.get("native_module", "montepath._native"))
+    max_returned_paths = int(
+        request.get("max_returned_paths", MAX_AGENT_INVENTORY_RETURNED_PATHS)
+    )
+    try:
+        execution = execute_workload(
+            "inventory_policy",
+            config,
+            backend=backend,
+            native_module=native_module,
+        )
+    except ProductionCapabilityError as exc:
+        diagnostics = [dict(item) for item in exc.selection.diagnostics]
+        return {
+            "ok": False,
+            "diagnostics": diagnostics,
+            "manifest": _agent_manifest(
+                tool="montepath.inventory.simulate",
+                workload="inventory_policy",
+                config=config,
+                method="failed_execution",
+                backend=exc.selection.backend_id,
+                warnings=tuple(item["message"] for item in diagnostics),
+                reference="inventory_periodic_review_deterministic_trace_v1",
+            ),
+        }
+
+    raw_result = dict(execution["result"])
+    all_paths = list(raw_result.get("paths", ()))
+    returned_paths = all_paths[:max_returned_paths]
+    payload = {
+        "summary": dict(raw_result["summary"]),
+        "paths": returned_paths,
+        "traces": list(raw_result.get("traces", ())),
+        "total_path_count": len(all_paths),
+        "returned_path_count": len(returned_paths),
+        "paths_truncated": len(returned_paths) < len(all_paths),
+        "runtime_manifest": dict(raw_result["manifest"]),
+        "selection": dict(execution["selection"]),
+        "limits": _inventory_limits(),
+        "warnings": list(raw_result.get("warnings", ())),
+    }
+    return {
+        "ok": True,
+        "result": payload,
+        "manifest": _agent_manifest(
+            tool="montepath.inventory.simulate",
+            workload="inventory_policy",
+            config=config,
+            method="periodic_review_inventory",
+            backend=execution["selection"]["backend_id"],
+            warnings=tuple(payload["warnings"]),
+            reference="inventory_periodic_review_deterministic_trace_v1",
+        ),
+        "reproduction": {
+            "python": (
+                "from montepath import execute_workload\n"
+                f"result = execute_workload('inventory_policy', {config!r}, backend={backend!r})\n"
+                "print(result['result']['summary'])\n"
+            ),
+            "manifest": dict(raw_result["manifest"]),
+        },
+    }
 
 
 def _tool(
@@ -935,13 +1097,14 @@ def _agent_manifest(
     estimator: str | None = None,
     warnings: tuple[str, ...] = (),
     reference: Any = None,
+    backend: str = "python_reference",
 ) -> dict[str, Any]:
     return {
         "schema_version": "agent-run.v1",
         "tool": tool,
         "workload": workload,
         "seed": config.get("seed"),
-        "backend": "python_reference",
+        "backend": backend,
         "method": method,
         "estimator": estimator,
         "config": dict(config),
@@ -974,3 +1137,68 @@ def _benchmark_command(profile: str, release: bool) -> list[str]:
         command.append("--release")
     command.extend(["--", "--profile", profile])
     return command
+
+
+def _inventory_limits() -> dict[str, int]:
+    return {
+        "max_paths": MAX_AGENT_INVENTORY_PATHS,
+        "max_periods": MAX_AGENT_INVENTORY_PERIODS,
+        "max_path_period_operations": MAX_AGENT_INVENTORY_PATH_PERIOD_OPERATIONS,
+        "max_returned_paths": MAX_AGENT_INVENTORY_RETURNED_PATHS,
+    }
+
+
+def _inventory_limit_diagnostics(request: Mapping[str, Any]) -> list[dict[str, str]]:
+    config = _config_payload(request)
+    n_paths = _integer_value(config.get("n_paths"), 10_000)
+    n_periods = _integer_value(config.get("n_periods"), 52)
+    raw_max_returned_paths = request.get("max_returned_paths")
+    max_returned_paths = _integer_value(
+        raw_max_returned_paths, MAX_AGENT_INVENTORY_RETURNED_PATHS
+    )
+    diagnostics: list[dict[str, str]] = []
+    if raw_max_returned_paths is not None and (
+        not isinstance(raw_max_returned_paths, int)
+        or isinstance(raw_max_returned_paths, bool)
+    ):
+        diagnostics.append(
+            {
+                "code": "MC_AGENT_CONFIG_SHAPE",
+                "message": "max_returned_paths must be an integer",
+                "suggestion": "Use an integer between 0 and 100.",
+            }
+        )
+    for exceeds, code, message, suggestion in (
+        (
+            n_paths > MAX_AGENT_INVENTORY_PATHS,
+            "MC_AGENT_LIMIT_INVENTORY_PATHS",
+            f"n_paths={n_paths} exceeds agent inventory limit {MAX_AGENT_INVENTORY_PATHS}",
+            "Reduce n_paths or run the native API outside the bounded agent tool.",
+        ),
+        (
+            n_periods > MAX_AGENT_INVENTORY_PERIODS,
+            "MC_AGENT_LIMIT_INVENTORY_PERIODS",
+            f"n_periods={n_periods} exceeds agent inventory limit {MAX_AGENT_INVENTORY_PERIODS}",
+            "Reduce n_periods or run the native API outside the bounded agent tool.",
+        ),
+        (
+            n_paths * n_periods > MAX_AGENT_INVENTORY_PATH_PERIOD_OPERATIONS,
+            "MC_AGENT_LIMIT_INVENTORY_OPERATIONS",
+            "inventory request exceeds the bounded path-period operation limit",
+            "Reduce n_paths or n_periods.",
+        ),
+        (
+            max_returned_paths < 0
+            or max_returned_paths > MAX_AGENT_INVENTORY_RETURNED_PATHS,
+            "MC_AGENT_LIMIT_INVENTORY_RETURNED_PATHS",
+            f"max_returned_paths must be between 0 and {MAX_AGENT_INVENTORY_RETURNED_PATHS}",
+            "Request a bounded path sample and use summary metrics for the full run.",
+        ),
+    ):
+        if exceeds:
+            diagnostics.append({"code": code, "message": message, "suggestion": suggestion})
+    return diagnostics
+
+
+def _integer_value(value: Any, default: int) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else default

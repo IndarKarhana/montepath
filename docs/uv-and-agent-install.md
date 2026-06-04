@@ -56,7 +56,7 @@ Expected installed-wheel shape:
 {
   "available": true,
   "module_name": "montepath._native",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "supported_functions": [
     "price_european_call",
     "price_arithmetic_asian_call",
@@ -72,7 +72,9 @@ Expected installed-wheel shape:
     "price_merton_jump_diffusion_call",
     "price_european_call_parameter_sweep",
     "gaussian_uncertainty_moments",
-    "arithmetic_asian_mlmc"
+    "arithmetic_asian_mlmc",
+    "validate_inventory_config",
+    "simulate_inventory_policy"
   ],
   "reason": null
 }
@@ -154,11 +156,19 @@ Production-oriented agent tools include:
   against production policy and benchmark evidence without executing it
 - `montepath.validation_report`: inspect committed reference fixtures, caveats,
   and tolerance policy without running simulations
+- `montepath.inventory.validate`: validate inventory semantics, backend support,
+  and bounded execution policy without running simulation
+- `montepath.inventory.simulate`: execute inventory through CPU native or Python
+  reference policy with capped returned paths and optional bounded traces
 
 Built-in limits:
 
 - maximum request size: `1_000_000` bytes
 - maximum `config.n_paths`: `1_000_000`
+- inventory maximum paths: `100_000`
+- inventory maximum periods: `1_000`
+- inventory maximum path-period operations: `10_000_000`
+- inventory maximum returned paths: `100`
 - full benchmark execution is blocked through MCP
 
 Run release/full benchmarks directly instead:

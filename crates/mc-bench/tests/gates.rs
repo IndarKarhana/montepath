@@ -56,6 +56,40 @@ fn benchmark_gates_hold_for_current_internal_suite() {
     );
     assert_eq!(rust_mc.methodology.as_deref(), Some("stepwise_paths"));
 
+    let inventory = find_metric("inventory_cpu_periodic_review_rust", &report);
+    assert!(
+        inventory.total_runtime_ms > 0.0 && inventory.throughput_per_sec > 0.0,
+        "inventory CPU reference gate failed: expected positive runtime and throughput"
+    );
+    assert_eq!(
+        inventory.methodology.as_deref(),
+        Some("single_sku_periodic_review_fixed_lead_time")
+    );
+    assert!(
+        inventory
+            .metric_value
+            .is_some_and(|mean_total_cost| mean_total_cost.is_finite() && mean_total_cost > 0.0),
+        "inventory CPU reference gate failed: expected finite positive mean total cost"
+    );
+    for competitor_name in [
+        "inventory_cpu_periodic_review_numpy",
+        "inventory_cpu_periodic_review_numba",
+    ] {
+        if let Some(competitor) = report
+            .results
+            .iter()
+            .find(|row| row.benchmark_name == competitor_name)
+        {
+            assert!(
+                inventory.per_iteration_us < competitor.per_iteration_us,
+                "inventory competitiveness gate failed: Rust per_iteration_us={} {} per_iteration_us={}",
+                inventory.per_iteration_us,
+                competitor_name,
+                competitor.per_iteration_us
+            );
+        }
+    }
+
     if let Some(numpy) = report
         .results
         .iter()

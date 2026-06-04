@@ -1,5 +1,16 @@
 # Migration Notes
 
+## 0.2.0
+
+MontePath `0.2.0` adds periodic-review inventory policy simulation as a new,
+typed workload family. It includes Rust-backed CPU execution, a scalar Python
+reference, bounded selected-path traces, production backend validation, and
+dedicated bounded agent/MCP tools.
+
+Existing `0.1.x` pricing configs, result fields, tool ids, and backend behavior
+remain compatible. Result and capability manifests add inventory-related
+fields and entries without removing existing keys.
+
 ## Current Python Surface
 
 The current Python package exposes dependency-free UX helpers plus an optional
@@ -24,7 +35,7 @@ useful for examples, testing, and agent preflight.
 
 ## Stability Expectations
 
-- Config field names are intended to be stable within the `0.1.x` line.
+- Config field names are intended to be stable within each minor release line.
 - Result manifests may add fields, but existing keys should not be removed
   without migration notes.
 - Unsupported accelerator behavior must remain explicit.

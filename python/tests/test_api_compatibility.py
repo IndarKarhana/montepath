@@ -26,6 +26,12 @@ class ApiCompatibilityTests(unittest.TestCase):
             "agent_validation_report",
             "agent_tool_manifest",
             "export_json_schemas",
+            "simulate_inventory_policy",
+            "simulate_inventory_policy_reference",
+            "validate_inventory_config",
+            "InventoryTraceConfig",
+            "agent_inventory_validate",
+            "agent_inventory_simulate",
         }
 
         self.assertTrue(expected.issubset(set(montepath.__all__)))
@@ -39,6 +45,8 @@ class ApiCompatibilityTests(unittest.TestCase):
             "montepath.capabilities",
             "montepath.production_check",
             "montepath.validation_report",
+            "montepath.inventory.validate",
+            "montepath.inventory.simulate",
             "montepath.recommend",
             "montepath.plan",
             "montepath.execute",
@@ -79,6 +87,8 @@ class ApiCompatibilityTests(unittest.TestCase):
             "price_basket_call",
             "gaussian_uncertainty_moments",
             "arithmetic_asian_mlmc",
+            "validate_inventory_config",
+            "simulate_inventory_policy",
         }
 
         self.assertTrue(expected.issubset(set(KNOWN_NATIVE_FUNCTIONS)))

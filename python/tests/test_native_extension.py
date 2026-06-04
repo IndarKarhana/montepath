@@ -1,4 +1,6 @@
 import unittest
+from dataclasses import asdict
+from importlib import import_module
 
 from montepath import (
     AmericanPutConfig,
@@ -12,6 +14,10 @@ from montepath import (
     EuropeanCallSweepScenario,
     GaussianUncertaintyConfig,
     HestonEuropeanCallConfig,
+    InventoryDemandConfig,
+    InventoryPolicy,
+    InventorySimulationConfig,
+    InventoryTraceConfig,
     LookbackCallConfig,
     MertonJumpDiffusionCallConfig,
     gaussian_uncertainty_moments,
@@ -27,6 +33,8 @@ from montepath import (
     price_heston_european_call,
     price_lookback_call,
     price_merton_jump_diffusion_call,
+    simulate_inventory_policy,
+    simulate_inventory_policy_reference,
 )
 
 
@@ -48,6 +56,8 @@ class NativeExtensionTests(unittest.TestCase):
             "price_european_call_parameter_sweep",
             "gaussian_uncertainty_moments",
             "arithmetic_asian_mlmc",
+            "validate_inventory_config",
+            "simulate_inventory_policy",
         }
         optional_metal_bridge = {
             "price_european_call_metal",
@@ -133,6 +143,27 @@ class NativeExtensionTests(unittest.TestCase):
         self.assertIn("price", mlmc.values)
         self.assertIn("rows", sweep.values)
         self.assertEqual(sweep.values["scenario_count"], 1)
+
+    def test_native_inventory_matches_python_deterministic_reference(self) -> None:
+        config = InventorySimulationConfig(
+            n_paths=1,
+            n_periods=3,
+            n_threads=2,
+            initial_on_hand=10.0,
+            lead_time_periods=1,
+            demand=InventoryDemandConfig(distribution="deterministic", units=4.0),
+            policy=InventoryPolicy(reorder_point=4.0, order_up_to=10.0),
+            trace=InventoryTraceConfig(path_indices=(0,), max_periods=2),
+        )
+        result = simulate_inventory_policy(config)
+        reference = simulate_inventory_policy_reference(config)
+
+        self.assertEqual(result.manifest["backend"], "cpu_native")
+        self.assertEqual(result.paths, reference.paths)
+        self.assertEqual(result.summary, reference.summary)
+        self.assertEqual(result.traces, reference.traces)
+        raw = import_module("montepath._native").simulate_inventory_policy(asdict(config))
+        self.assertEqual(raw["values"]["manifest"]["config"]["n_threads"], 2)
 
 
 if __name__ == "__main__":

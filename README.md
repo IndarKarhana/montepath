@@ -18,6 +18,7 @@ replacement for mature scientific or quantitative stacks.
 - Rust workspace scaffolding is in `crates/`
 - public alpha positioning is in `docs/public-alpha.md`
 - uv and MCP install guidance is in `docs/uv-and-agent-install.md`
+- inventory simulation usage and boundaries are in `docs/inventory-simulation.md`
 
 ## Core Principles
 
@@ -90,6 +91,12 @@ configuration locally, then require the installed `montepath._native` module
 with the matching function; they do not silently fall back to slow or
 unsupported behavior.
 
+Inventory and supply-chain simulation is available through the Rust-native
+`simulate_inventory_policy()` API, with typed configs, structured validation,
+bounded selected-path period traces, reproduction manifests, and a transparent
+`simulate_inventory_policy_reference()` audit path. See
+`docs/inventory-simulation.md`.
+
 ## Agent And MCP Usage
 
 Installed distributions include the `montepath-mcp` console entry point.
@@ -115,6 +122,7 @@ configuration, schemas, execution limits, and failure policy.
 from montepath import (
     agent_capabilities,
     agent_execute,
+    agent_inventory_simulate,
     agent_plan,
     agent_production_check,
     agent_tool_manifest,
@@ -144,6 +152,13 @@ preflight = agent_production_check({
 print(plan["plan"])
 print(preflight["result"]["validation"]["selection"])
 print(run["manifest"])
+
+inventory = agent_inventory_simulate({
+    "config": {"n_paths": 1_000, "n_periods": 104, "seed": 42},
+    "backend": "auto",
+    "max_returned_paths": 10,
+})
+print(inventory["result"]["summary"])
 ```
 
 ## Expressive API Example
@@ -198,6 +213,7 @@ The CPU runtime now exposes:
   - American put LSM
   - Bermudan put LSM
   - Heston European call
+  - periodic-review inventory policy simulation
 
 The GPU backend layer now exposes:
 
@@ -285,6 +301,9 @@ Market landscape notes are in `docs/market-landscape.md`.
 
 From the latest release benchmark run:
 
+- periodic-review inventory Rust CPU path: `6.238 ms`
+- periodic-review inventory NumPy baseline: `14.237 ms`
+- periodic-review inventory Numba baseline: `29.260 ms`
 - fair step-wise Rust CPU European path: `12.416 ms`
 - step-wise Rust antithetic path: `27.450 ms`
 - step-wise Rust control-variate path: `13.233 ms`
@@ -371,6 +390,7 @@ Current quality ratios from the same release run:
 What we can honestly claim now:
 
 - CPU performance is strong against the available NumPy and Numba baselines on the tracked fair European workload.
+- The periodic-review inventory CPU path is faster than the identical-semantics NumPy and Numba lanes in the committed release artifact.
 - Native Apple Metal is materially faster than our CPU baseline on the tracked European, arithmetic Asian, and down-and-out workloads.
 - The library has better breadth than before, with early-exercise LSM, Heston, Merton jump diffusion, two-asset basket, typed European parameter sweeps, Gaussian UQ moment checks, randomized Halton, Latin hypercube, scrambled Sobol, and Brownian-bridge path construction. Direct QMC normal generation beats the available SciPy QMC baselines on the tracked release Sobol, Halton, and Latin-hypercube rows.
 - European QMC now has an analytic realized-error scoreboard against Black-Scholes, so accuracy claims for that workload are no longer limited to standard-error ratios.
@@ -381,7 +401,7 @@ What we should not overclaim yet:
 - structured sampling generation is now competitive and pricing overhead is much lower, but full structured-pricing paths still trail the pseudorandom CPU baseline; realized-error wins are currently benchmark evidence for the European analytic-reference case, not a universal guarantee
 - MLMC and MLQMC are CPU-reference only, and their tolerance planning is calibrated for the arithmetic Asian path but not yet broadly calibrated across workload families
 - native CUDA execution is not implemented yet and is deferred to a later accelerator-focused version
-- installed wheels now include a Rust-backed `montepath._native` CPU extension and production preflight helpers for supported CPU-native use; native Metal wheels and CUDA execution remain future work
+- installed wheels now include a Rust-backed `montepath._native` CPU extension and production preflight helpers for supported CPU-native use; supported macOS wheels expose the documented strict Metal bridge, while CUDA execution remains future work
 - planner calibration is improving, but `87.5%` measured local accuracy is not broad production-grade backend intelligence yet
 
 ## Next Steps

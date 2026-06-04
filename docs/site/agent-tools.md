@@ -6,6 +6,7 @@ The Python package exposes stable, JSON-serializable agent wrappers:
 from montepath import (
     agent_capabilities,
     agent_execute,
+    agent_inventory_simulate,
     agent_plan,
     agent_production_check,
     agent_tool_manifest,
@@ -28,6 +29,16 @@ preflight = agent_production_check({
     "workload": "european_call",
     "config": {"n_paths": 128, "n_steps": 4, "seed": 5},
     "backend": "auto"
+})
+
+inventory = agent_inventory_simulate({
+    "config": {
+        "n_paths": 10_000,
+        "n_periods": 104,
+        "trace": {"path_indices": [0], "max_periods": 12},
+    },
+    "backend": "auto",
+    "max_returned_paths": 10,
 })
 ```
 
@@ -70,3 +81,8 @@ Generic MCP client configuration:
 Use `tools/list` to discover schemas and `tools/call` to execute a tool. Full
 benchmark execution is intentionally blocked through MCP; run the benchmark
 harness directly for release artifacts.
+
+The dedicated `montepath.inventory.validate` and
+`montepath.inventory.simulate` tools expose inventory-specific schemas,
+backend policy, request limits, bounded traces, and capped path-level output.
+The complete aggregate summary is returned even when path output is truncated.

@@ -11,6 +11,8 @@ From `latest-results.json`:
 - `planner_choice_accuracy`: `100.0%` on the internal scenario set
 - `planner_choice_accuracy_measured`: `87.5%`, tracking planner accuracy against measured local backend winners on the current machine
 - `mc_cpu_european_call_rust` (`stepwise_paths`): tracked as the fair CPU European baseline
+- `inventory_cpu_periodic_review_rust` (`single_sku_periodic_review_fixed_lead_time`): tracks the first inventory CPU runtime at `10,000 paths x 104 periods`
+- `inventory_cpu_periodic_review_numpy` and `inventory_cpu_periodic_review_numba`: identical-semantics inventory competitor lanes, with unavailable states kept explicit
 - `mc_cpu_european_call_rust_antithetic` (`stepwise_paths_antithetic`): tracked as the first variance-reduced CPU European path
 - `mc_cpu_european_call_rust_control_variate` (`stepwise_paths_control_variate`): tracked as the strongest current CPU European quality-improving path
 - `mc_cpu_arithmetic_asian_call_rust` (`arithmetic_asian_stepwise`): tracked as the second CPU workload family
@@ -69,6 +71,9 @@ From `latest-results.json`:
 From `release-results.json`:
 
 - `planner_choice_accuracy_measured`: `100.0%` on the measured local backend-winner suite
+- `inventory_cpu_periodic_review_rust`: `6.238 ms` per run for `10,000 paths x 104 periods`
+- `inventory_cpu_periodic_review_numpy`: `14.237 ms` per run on identical operational semantics
+- `inventory_cpu_periodic_review_numba`: `29.260 ms` per run on identical operational semantics
 - `mc_cpu_european_call_rust` (`stepwise_paths`): `12.416 ms` per run, price `9.430456`
 - `mc_cpu_european_call_rust_control_variate` (`stepwise_paths_control_variate`): see `release-results.json`, `stderr_ratio_vs_standard = 0.411`
 - `mc_cpu_european_call_rust_terminal` (`terminal_distribution`): `0.610 ms` per run
